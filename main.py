@@ -5,7 +5,7 @@ import tensorflow as tf
 from src.naf import NAF
 
 flags = tf.app.flags
-flags.DEFINE_string('env', 'CartPole-v0', 'The name of environment')
+flags.DEFINE_string('env', 'LunarLander-v2', 'The name of environment')
 flags.DEFINE_integer('random_seed', 123, 'The value of random seed')
 flags.DEFINE_float('learning_rate', 1e-4, 'The value of learning rate')
 flags.DEFINE_float('noise', 0.1, 'The value of noise')
@@ -20,9 +20,10 @@ random.seed(FLAGS.random_seed)
 
 def main(_):
   env = gym.make(FLAGS.env)
+  assert isinstance(env.observation_space, gym.spaces.Box), "observation space must be continuous"
 
   with tf.Session() as sess:
-    agent = NAF(env)
+    agent = NAF(env, sess)
 
     if FLAGS.is_train:
       agent.train()

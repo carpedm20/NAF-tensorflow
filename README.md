@@ -33,6 +33,11 @@ To test and record the screens with gym:
 (in progress)
 
 
+## References
+
+- [rllab](https://github.com/rllab/rllab.git)
+
+
 ## Author
 
 Taehoon Kim / [@carpedm20](http://carpedm20.github.io/)

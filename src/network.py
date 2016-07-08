@@ -1,28 +1,55 @@
 import tensorflow as tf
 
-from .ops import fully_connected, initializers
+from .ops import fully_connected, initializers, batch_norm
+
+He_uniform = initializers.variance_scaling_initializer(factor=2.0, mode='FAN_IN', uniform=False)
 
 class Network(object):
   def __init__(self,
-               sess,
-               state_shape,
+               session,
+               input_shape,
                action_size,
                hidden_dims,
                use_batch_norm=True,
+               action_merge_layer=-2,
                activation_fn=tf.nn.relu,
-               weights_initializer=initializers.xavier_initializer(),
-               biases_initializer=tf.constant_initializer(0.0),
+               hidden_weights_initializer=He_uniform,
+               hidden_biases_initializer=tf.constant_initializer(0.0),
+               output_weights_initializer=tf.random_uniform_initializer(-3e-3,3e-3),
+               output_biases_initializer=tf.random_uniform_initializer(-3e-3,3e-3),
                name='NAF'):
-    self.sess = sess
+    self.sess = session
+
+    # if batch_norm is used, apply activation_fn after batch norm,
+    # and remove biases which is redundant
+    if use_batch_norm:
+      activation_fn_for_batch_norm = activation_fn
+      activation_fn = None
+      biases_initializer = None
+
+    is_train = tf.placeholder(tf.bool, [], name='is_train')
 
     with tf.variable_scope(name):
-      x = hidden_layer = tf.placeholder(tf.float32, [None] + list(state_shape), name='state')
-      u = tf.placeholder(tf.float32, [None, action_size], name='action')
+      x = hidden_layer = tf.placeholder(tf.float32, [None] + list(input_shape), name='observations')
+      u = tf.placeholder(tf.float32, [None, action_size], name='actions')
 
       variables = []
 
-      hidden_layer = self.state
+      n_layers = len(hidden_dims) + 1
+      if n_layers > 1:
+        action_merge_layer = \
+          (action_merge_layer % n_layers + n_layers) % n_layers
+      else:
+        action_merge_layer = 1
+
+      hidden_layer = x
       for idx, hidden_dim in enumerate(hidden_dims):
+        if use_batch_norm:
+          hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train)
+
+        if idx == action_merge_layer:
+          hidden_layer = tf.concat(1, [hidden_layer, u])
+
         hidden_layer = fully_connected(
           hidden_layer,
           num_outputs=hidden_dim,
@@ -32,12 +59,6 @@ class Network(object):
           variables_collections=variables,
           scope='hid%d' % idx,
         )
-
-        if use_batch_norm:
-          mean, variance = tf.nn.moments(
-              hidden_layer, [0], keep_dims=True, name='moments%d' % idx)
-          hidden_layer = tf.nn.batch_normalization(
-              hidden_layer, mean, variance, name='batch_norm%d' % idx)
 
       V = fully_connected(
         hidden_layer,

@@ -1,15 +1,16 @@
 import tensorflow as tf
 
 from .network import Network
-from .memory import Network
+from .memory import Memory
 from .utils import get_timestamp
 
 class NAF(object):
-  def __init__(self, env):
+  def __init__(self, env, sess):
     self.env = env
     self.memory = Memory()
 
     self.pred_network = Network(
+      session=sess,
       input_shape=env.observation_space.shape,
       action_size=env.action_space.n + 1,
       hidden_dims=[200, 200],
@@ -29,7 +30,7 @@ class NAF(object):
     tf.initialize_all_variables().run()
     saver = tf.train.Saver(self.network.variables + [step_op], max_to_keep=30)
 
-    self.env.monitor.start('/tmp/%s-%s' % (self.env.name, get_timestamp())
+    self.env.monitor.start('/tmp/%s-%s' % (self.env.name, get_timestamp()))
     for episode in xrange(n_episodes):
       state = env.reset()
 
