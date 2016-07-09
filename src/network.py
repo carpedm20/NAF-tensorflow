@@ -44,31 +44,36 @@ class Network(object):
       is_train = tf.placeholder(tf.bool, name='is_train')
 
       with tf.variable_scope('advantage'):
-        hidden_layer = batch_norm(x, is_train)
+        def make_network(input_layer, is_train, num_outputs, scope):
+          with tf.variable_scope(scope):
+            hidden_layer = batch_norm(input_layer, is_train)
 
-        for idx, hidden_dim in enumerate(hidden_dims):
-          hidden_layer = fully_connected(
-            hidden_layer,
-            num_outputs=hidden_dim,
-            activation_fn=hidden_activation_fn,
-            weights_initializer=hidden_weights_initializer,
-            biases_initializer=hidden_biases_initializer,
-            variables_collections=variables,
-            scope='hid%d' % idx,
-          )
+            for idx, hidden_dim in enumerate(hidden_dims):
+              hidden_layer = fully_connected(
+                hidden_layer,
+                num_outputs=hidden_dim,
+                activation_fn=hidden_activation_fn,
+                weights_initializer=hidden_weights_initializer,
+                biases_initializer=hidden_biases_initializer,
+                variables_collections=variables,
+                scope='hid%d' % idx,
+              )
 
-          if use_batch_norm:
-            hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train))
+              if use_batch_norm:
+                hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train))
 
-        l = fully_connected(
-          hidden_layer,
-          num_outputs=(action_size * (action_size + 1))/2,
-          activation_fn=output_activation_fn,
-          weights_initializer=output_weights_initializer,
-          biases_initializer=output_biases_initializer,
-          variables_collections=variables,
-          scope='L',
-        )
+            return fully_connected(
+              hidden_layer,
+              num_outputs=num_outputs,
+              activation_fn=output_activation_fn,
+              weights_initializer=output_weights_initializer,
+              biases_initializer=output_biases_initializer,
+              variables_collections=variables,
+              scope='out',
+            )
+
+        l = make_network(x, is_train, (action_size * (action_size + 1))/2, 'l')
+        mu = make_network(x, is_train, action_size, 'mu')
 
         columns = []
         for idx in xrange(action_size):
@@ -76,20 +81,11 @@ class Network(object):
           columns.append(column)
 
         L = tf.pack(columns, axis=1)
-        P = tf.matmul(L, tf.transpose(L, (0, 2, 1)))
+        P = tf.batch_matmul(L, tf.transpose(L, (0, 2, 1)))
 
-        mu = fully_connected(
-          hidden_layer,
-          num_outputs=action_size,
-          activation_fn=None,
-          weights_initializer=weights_initializer,
-          biases_initializer=biases_initializer,
-          variables_collections=variables,
-          scope='mu',
-        )
-
-        tmp = u - mu
-        A = -tf.matmul(tf.transpose(tmp, [0, 2, 1]), tf.matmul(P, tmp))/2
+        tmp = tf.expand_dims(u - mu, 2)
+        A = -tf.batch_matmul(tf.transpose(tmp, [0, 2, 1]), tf.batch_matmul(P, tmp))/2
+        A = tf.reshape(A, [-1, 1])
 
       with tf.variable_scope('value'):
         hidden_layer = batch_norm(x, is_train)
@@ -114,9 +110,9 @@ class Network(object):
         V = fully_connected(
           hidden_layer,
           num_outputs=1,
-          activation_fn=None,
-          weights_initializer=weights_initializer,
-          biases_initializer=biases_initializer,
+          activation_fn=output_activation_fn,
+          weights_initializer=output_weights_initializer,
+          biases_initializer=output_biases_initializer,
           variables_collections=variables,
           scope='V',
         )
@@ -126,7 +122,7 @@ class Network(object):
       with tf.variable_scope('optimizer'):
         true_action = tf.placeholder(tf.int64, [None], name='action')
 
-        action_one_hot = tf.one_hot(true_action, self.env.action_size, 1.0, 0.0, name='action_one_hot')
+        action_one_hot = tf.one_hot(true_action, action_size, 1.0, 0.0, name='action_one_hot')
         acted_Q = tf.reduce_sum(Q * action_one_hot, reduction_indices=1, name='q_acted')
 
         target_Q = tf.placeholder(tf.float32, [None], name='target_Q')

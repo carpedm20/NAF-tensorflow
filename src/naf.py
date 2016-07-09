@@ -14,24 +14,27 @@ class NAF(object):
       input_shape=env.observation_space.shape,
       action_size=env.action_space.n + 1,
       hidden_dims=[200, 200],
+      name='pred_network',
     )
     self.target_network = Network(
+      session=sess,
       input_shape=env.observation_space.shape,
       action_size=env.action_space.n + 1,
       hidden_dims=[200, 200],
+      name='target_network',
     )
     self.target_network.make_copy_from(self.pred_network)
 
-  def train(self, n_episodes, lr, learn_start, display=False):
+  def train(self, num_train, learning_rate, learn_start, display=False):
     step_op = tf.Variable(0, trainable=False, name='step')
-    optim = tf.train.AdamOptimizer(lr) \
+    optim = tf.train.AdamOptimizer(learning_rate) \
       .minimize(self.network.loss, global_step=step_op)
 
     tf.initialize_all_variables().run()
     saver = tf.train.Saver(self.network.variables + [step_op], max_to_keep=30)
 
     self.env.monitor.start('/tmp/%s-%s' % (self.env.name, get_timestamp()))
-    for episode in xrange(n_episodes):
+    for episode in xrange(num_train):
       state = env.reset()
 
       for t in xrange(max_step):
