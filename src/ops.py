@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.python import control_flow_ops
+from tensorflow.contrib.framework import get_variables
 from tensorflow.contrib.layers import fully_connected, initializers
 
 def batch_norm(layer,
@@ -18,12 +19,12 @@ def batch_norm(layer,
   shape = [size for axis, size in enumerate(input_shape) if axis not in axes]
 
   with tf.variable_scope(scope):
-    ema = tf.train.ExponentialMovingAverage(decay=0.9)
+    ema = tf.train.ExponentialMovingAverage(decay=decay)
 
     beta = tf.Variable(tf.constant(0.0, shape=shape), name='beta')
     gamma = tf.Variable(tf.constant(1.0, shape=shape), name='gamma')
 
-    mean, variance = tf.nn.moments(layer, axes, name='moments')
+    mean, variance = tf.nn.moments(layer, axes)
     maintain_averages_op = ema.apply([mean, variance])
 
     with tf.control_dependencies([maintain_averages_op]):

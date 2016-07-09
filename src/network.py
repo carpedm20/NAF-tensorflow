@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from .ops import fully_connected, initializers, batch_norm
+from .ops import fully_connected, initializers, get_variables, batch_norm
 
 He_uniform = initializers.variance_scaling_initializer(factor=2.0, mode='FAN_IN', uniform=False)
 
@@ -16,8 +16,8 @@ class Network(object):
                hidden_weights_initializer=He_uniform,
                hidden_biases_initializer=tf.constant_initializer(0.0),
                output_activation_fn=None,
-               output_weights_initializer=tf.random_uniform_initializer(-3e-3,3e-3),
-               output_biases_initializer=tf.random_uniform_initializer(-3e-3,3e-3),
+               output_weights_initializer=tf.random_uniform_initializer(-3e-4,3e-4),
+               output_biases_initializer=tf.constant_initializer(0.0),
                name='NAF'):
     self.sess = session
 
@@ -31,8 +31,6 @@ class Network(object):
     with tf.variable_scope(name):
       x = hidden_layer = tf.placeholder(tf.float32, [None] + list(input_shape), name='observations')
       u = tf.placeholder(tf.float32, [None, action_size], name='actions')
-
-      variables = []
 
       n_layers = len(hidden_dims) + 1
       if n_layers > 1:
@@ -55,7 +53,6 @@ class Network(object):
                 activation_fn=hidden_activation_fn,
                 weights_initializer=hidden_weights_initializer,
                 biases_initializer=hidden_biases_initializer,
-                variables_collections=variables,
                 scope='hid%d' % idx,
               )
 
@@ -68,7 +65,6 @@ class Network(object):
               activation_fn=output_activation_fn,
               weights_initializer=output_weights_initializer,
               biases_initializer=output_biases_initializer,
-              variables_collections=variables,
               scope='out',
             )
 
@@ -100,7 +96,6 @@ class Network(object):
             activation_fn=hidden_activation_fn,
             weights_initializer=hidden_weights_initializer,
             biases_initializer=hidden_biases_initializer,
-            variables_collections=variables,
             scope='hid%d' % idx,
           )
 
@@ -113,7 +108,6 @@ class Network(object):
           activation_fn=output_activation_fn,
           weights_initializer=output_weights_initializer,
           biases_initializer=output_biases_initializer,
-          variables_collections=variables,
           scope='V',
         )
 
@@ -130,22 +124,22 @@ class Network(object):
 
       self.input = x
       self.action = u
-      self.true_action = true_action
+      self.loss = loss
       self.target_Q = target_Q
+      self.true_action = true_action
+      self.is_train = is_train
 
       self.V, self.L, self.P, self.mu, self.A, self.Q = V, L, P, mu, A, Q
-
-      self.loss = loss
-      self.variables = variables
+      self.variables = get_variables(name)
 
   def predict(self, state):
-    return self.sess.run(self.mu, {self.input: state})
+    return self.sess.run(self.mu, {self.input: state, self.is_train: False})
 
   def make_copy_from(self, network):
     self.assign_op = {}
 
     for from_, to_ in zip(network.variables, self.variables):
-      self.assign_op[self.to_.name] = to_.assign(from_)
+      self.assign_op[to_.name] = to_.assign(from_)
 
   def update_from(self, network):
     for variable in self.variables:

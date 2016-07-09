@@ -6,7 +6,7 @@ class Memory(object):
     self.terminals = []
     self.poststates = []
 
-  def add(prestate, action, reward, terminal, poststate):
+  def add(self, prestate, action, reward, terminal, poststate):
     self.prestates.append(prestate)
     self.actions.append(action)
     self.rewards.append(reward)
@@ -16,3 +16,4 @@ class Memory(object):
   @property
   def size(self):
     return len(self.rewards)
+
