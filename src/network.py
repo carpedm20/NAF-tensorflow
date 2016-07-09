@@ -12,9 +12,10 @@ class Network(object):
                hidden_dims,
                use_batch_norm=True,
                action_merge_layer=-2,
-               activation_fn=tf.nn.relu,
+               hidden_activation_fn=tf.nn.relu,
                hidden_weights_initializer=He_uniform,
                hidden_biases_initializer=tf.constant_initializer(0.0),
+               output_activation_fn=None,
                output_weights_initializer=tf.random_uniform_initializer(-3e-3,3e-3),
                output_biases_initializer=tf.random_uniform_initializer(-3e-3,3e-3),
                name='NAF'):
@@ -23,11 +24,9 @@ class Network(object):
     # if batch_norm is used, apply activation_fn after batch norm,
     # and remove biases which is redundant
     if use_batch_norm:
-      activation_fn_for_batch_norm = activation_fn
-      activation_fn = None
-      biases_initializer = None
-
-    is_train = tf.placeholder(tf.bool, [], name='is_train')
+      activation_fn_for_batch_norm = hidden_activation_fn
+      hidden_activation_fn = None
+      hidden_biases_initializer = None
 
     with tf.variable_scope(name):
       x = hidden_layer = tf.placeholder(tf.float32, [None] + list(input_shape), name='observations')
@@ -42,63 +41,86 @@ class Network(object):
       else:
         action_merge_layer = 1
 
-      hidden_layer = x
-      for idx, hidden_dim in enumerate(hidden_dims):
-        if use_batch_norm:
-          hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train)
+      is_train = tf.placeholder(tf.bool, name='is_train')
 
-        if idx == action_merge_layer:
-          hidden_layer = tf.concat(1, [hidden_layer, u])
+      with tf.variable_scope('advantage'):
+        hidden_layer = batch_norm(x, is_train)
 
-        hidden_layer = fully_connected(
+        for idx, hidden_dim in enumerate(hidden_dims):
+          hidden_layer = fully_connected(
+            hidden_layer,
+            num_outputs=hidden_dim,
+            activation_fn=hidden_activation_fn,
+            weights_initializer=hidden_weights_initializer,
+            biases_initializer=hidden_biases_initializer,
+            variables_collections=variables,
+            scope='hid%d' % idx,
+          )
+
+          if use_batch_norm:
+            hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train))
+
+        l = fully_connected(
           hidden_layer,
-          num_outputs=hidden_dim,
-          activation_fn=activation_fn,
+          num_outputs=(action_size * (action_size + 1))/2,
+          activation_fn=output_activation_fn,
+          weights_initializer=output_weights_initializer,
+          biases_initializer=output_biases_initializer,
+          variables_collections=variables,
+          scope='L',
+        )
+
+        columns = []
+        for idx in xrange(action_size):
+          column = tf.pad(tf.slice(l, (0, 0), (-1, action_size - idx)), ((0, 0), (idx, 0)))
+          columns.append(column)
+
+        L = tf.pack(columns, axis=1)
+        P = tf.matmul(L, tf.transpose(L, (0, 2, 1)))
+
+        mu = fully_connected(
+          hidden_layer,
+          num_outputs=action_size,
+          activation_fn=None,
           weights_initializer=weights_initializer,
           biases_initializer=biases_initializer,
           variables_collections=variables,
-          scope='hid%d' % idx,
+          scope='mu',
         )
 
-      V = fully_connected(
-        hidden_layer,
-        num_outputs=action_size,
-        activation_fn=None,
-        weights_initializer=weights_initializer,
-        biases_initializer=biases_initializer,
-        variables_collections=variables,
-        scope='V',
-      )
+        tmp = u - mu
+        A = -tf.matmul(tf.transpose(tmp, [0, 2, 1]), tf.matmul(P, tmp))/2
 
-      l = fully_connected(
-        hidden_layer,
-        num_outputs=(action_size * (action_size + 1))/2,
-        activation_fn=None,
-        weights_initializer=weights_initializer,
-        biases_initializer=biases_initializer,
-        variables_collections=variables,
-        scope='L',
-      )
+      with tf.variable_scope('value'):
+        hidden_layer = batch_norm(x, is_train)
 
-      columns = []
-      for idx in xrange(action_size):
-        column = tf.pad(tf.slice(l, (0, 0), (-1, action_size - idx)), ((0, 0), (idx, 0)))
-        columns.append(column)
-      L = tf.concat(1, columns)
-      P = tf.matmul(L, tf.transpose(L, (0, 2, 1)))
+        for idx, hidden_dim in enumerate(hidden_dims):
+          if idx == action_merge_layer:
+            hidden_layer = tf.concat(1, [hidden_layer, u])
 
-      mu = fully_connected(
-        hidden_layer,
-        num_outputs=action_size,
-        activation_fn=None,
-        weights_initializer=weights_initializer,
-        biases_initializer=biases_initializer,
-        variables_collections=variables,
-        scope='mu',
-      )
+          hidden_layer = fully_connected(
+            hidden_layer,
+            num_outputs=hidden_dim,
+            activation_fn=hidden_activation_fn,
+            weights_initializer=hidden_weights_initializer,
+            biases_initializer=hidden_biases_initializer,
+            variables_collections=variables,
+            scope='hid%d' % idx,
+          )
 
-      tmp = u - mu
-      A = -tf.matmul(tf.transpose(tmp, [0, 2, 1]), tf.matmul(P, tmp))/2
+          if use_batch_norm and idx != action_merge_layer:
+            hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train))
+
+        V = fully_connected(
+          hidden_layer,
+          num_outputs=1,
+          activation_fn=None,
+          weights_initializer=weights_initializer,
+          biases_initializer=biases_initializer,
+          variables_collections=variables,
+          scope='V',
+        )
+
       Q = A + V
 
       with tf.variable_scope('optimizer'):

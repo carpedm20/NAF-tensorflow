@@ -1,24 +1,40 @@
+import tensorflow as tf
+from tensorflow.python import control_flow_ops
 from tensorflow.contrib.layers import fully_connected, initializers
 
-from tensorflow.python import control_flow_ops
+def batch_norm(layer,
+               is_train, 
+               decay=0.9, epsilon=1e-4,
+               data_format='NCHW', scope='bn'):
+  input_shape = layer.get_shape().as_list()
 
-def batch_norm(x, phase_train, 
-    n_out=[0], epsilon=1e-4, alpha=0.1, scope='bn'):
+  if data_format == 'NCHW':
+    axes = (0,) + tuple(range(2, len(input_shape)))
+  elif data_format == 'NHWC':
+    axes = (0,) + tuple(range(1, len(input_shape) - 1))
+  else:
+    raise ValueError('Unknown data_format: %s' % data_format)
+
+  shape = [size for axis, size in enumerate(input_shape) if axis not in axes]
+
   with tf.variable_scope(scope):
-    beta = tf.Variable(tf.constant(0.0, shape=[n_out]), name='beta')
-    gamma = tf.Variable(tf.constant(1.0, shape=[n_out]), name='gamma')
+    ema = tf.train.ExponentialMovingAverage(decay=0.9)
 
-    mean, variance = tf.nn.moments(x, [0,1,2], name='moments')
-    ema = tf.train.ExponentialMovingAverage(decay=0.5)
+    beta = tf.Variable(tf.constant(0.0, shape=shape), name='beta')
+    gamma = tf.Variable(tf.constant(1.0, shape=shape), name='gamma')
 
-    def mean_var_with_update():
-      ema_apply_op = ema.apply([batch_mean, batch_var])
-      with tf.control_dependencies([ema_apply_op]):
-        return tf.identity(batch_mean), tf.identity(batch_var)
+    mean, variance = tf.nn.moments(layer, axes, name='moments')
+    maintain_averages_op = ema.apply([mean, variance])
 
-    mean, var = tf.cond(
-      phase_train,
-      mean_var_with_update,
-      lambda: (ema.average(batch_mean), ema.average(batch_var)))
-    normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, epsilon)
-  return normed
+    with tf.control_dependencies([maintain_averages_op]):
+      mean_with_dep, variance_with_dep = tf.identity(mean), tf.identity(variance)
+
+    shadow_mean = ema.average(mean)
+    shadow_variance = ema.average(variance)
+
+    m, v = tf.cond(is_train,
+                   lambda: (mean_with_dep, variance_with_dep),
+                   lambda: (shadow_mean, shadow_variance))
+
+    return tf.nn.batch_normalization(
+      layer, m, v, beta, gamma, epsilon)

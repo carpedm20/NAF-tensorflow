@@ -24,7 +24,7 @@ class NAF(object):
 
   def train(self, n_episodes, lr, learn_start, display=False):
     step_op = tf.Variable(0, trainable=False, name='step')
-    self.optim = tf.train.AdamOptimizer(lr) \
+    optim = tf.train.AdamOptimizer(lr) \
       .minimize(self.network.loss, global_step=step_op)
 
     tf.initialize_all_variables().run()
