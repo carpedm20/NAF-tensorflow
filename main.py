@@ -13,9 +13,9 @@ flags.DEFINE_string('env_name', 'BipedalWalker-v2', 'The name of environment')
 
 # training
 flags.DEFINE_integer('max_update', 10, '')
-flags.DEFINE_integer('batch_size', 32, '')
+flags.DEFINE_integer('batch_size', 100, '')
 flags.DEFINE_integer('learn_start', 100, '')
-flags.DEFINE_integer('max_step', 10000, '')
+flags.DEFINE_integer('max_step', 200, '')
 flags.DEFINE_integer('max_episode', 100000, '')
 flags.DEFINE_integer('target_q_update_step', 1000, '')
 flags.DEFINE_float('learning_rate', 1e-4, 'The value of learning rate')

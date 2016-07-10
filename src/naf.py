@@ -70,23 +70,23 @@ class NAF(object):
     if monitor:
       self.env.monitor.start('/tmp/%s-%s' % (self.env_name, get_timestamp()))
 
-    start_step = step_op.eval()
-    iterator = tqdm(range(start_step, self.max_episode), ncols=70, initial=start_step)
-
+    self.step = step_op.eval()
     self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
 
-    for self.step in iterator:
+    self.target_network.update_from(self.pred_network)
+
+    for episode in xrange(self.max_episode):
       state = self.env.reset()
 
-      for t in xrange(self.max_step):
+      iterator = tqdm(range(self.step, self.max_step), ncols=70, initial=self.step)
+      for t in iterator:
+        self.step += 1
         if display: self.env.render()
 
         # 1. predict
         action = self.predict(state)
-
         # 2. step
         state, reward, terminal, _ = self.env.step(action)
-
         # 3. perceive
         self.perceive(state, reward, action, terminal)
 
@@ -107,7 +107,7 @@ class NAF(object):
       self.q_learning_minibatch()
 
     if self.step % self.target_q_update_step == self.target_q_update_step - 1:
-      self.update_target_q_network()
+      self.target_network.update_from(self.pred_network)
 
   def q_learning_minibatch(self):
     total_loss = 0
