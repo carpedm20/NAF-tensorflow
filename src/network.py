@@ -122,8 +122,8 @@ class Network(object):
         target_Q = tf.placeholder(tf.float32, [None], name='target_Q')
         loss = tf.reduce_mean(tf.square(target_Q - acted_Q), name='loss')
 
-      self.input = x
-      self.action = u
+      self.x = x
+      self.u = u
       self.loss = loss
       self.target_Q = target_Q
       self.true_action = true_action

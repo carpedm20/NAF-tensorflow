@@ -7,7 +7,12 @@ from .memory import Memory
 from .utils import get_timestamp
 
 class NAF(object):
-  def __init__(self, sess, env_name, memory_size, batch_size):
+  def __init__(self,
+               sess,
+               env_name,
+               memory_size,
+               batch_size,
+               discount):
     self.env_name = env_name
     self.env = gym.make(env_name)
 
@@ -16,6 +21,7 @@ class NAF(object):
     assert isinstance(self.env.action_space, gym.spaces.Box), \
       "action space must be continuous"
 
+    self.discount = discount
     self.memory = Memory(self.env, batch_size, memory_size)
 
     self.pred_network = Network(
@@ -44,7 +50,7 @@ class NAF(object):
             monitor,
             display=False):
     step_op = tf.Variable(0, trainable=False, name='step')
-    optim = tf.train.AdamOptimizer(learning_rate) \
+    self.optim = tf.train.AdamOptimizer(learning_rate) \
       .minimize(self.pred_network.loss, global_step=step_op)
 
     tf.initialize_all_variables().run()
@@ -56,7 +62,7 @@ class NAF(object):
     start_step = step_op.eval()
     iterator = tqdm(range(start_step, num_train), ncols=70, initial=start_step)
 
-    for episode in iterator:
+    for self.step in iterator:
       state = self.env.reset()
 
       for t in xrange(max_step):
@@ -70,29 +76,40 @@ class NAF(object):
         if self.memory.size > learn_start:
           self.q_learning_minibatch()
 
+        if self.step % self.target_q_update_step == self.target_q_update_step - 1:
+          self.update_target_q_network()
+
         if terminal: break
 
     if mointor:
       self.env.monitor.close()
 
+  def predict(self, s_t, test_ep=None):
+    if random.random() < ep:
+      action = random.randrange(self.env.action_size)
+    else:
+      action = self.q_action.eval({self.s_t: [s_t]})[0]
+
+    return action
+
   def q_learning_minibatch(self):
     total_loss = 0
 
     for iteration in xrange(max_update):
-      s_t, action, reward, s_t_plus_1, terminal = self.memory.sample()
+      x_t, u_t, r_t, x_t_plus_1, terminal = self.memory.sample()
 
-      q_t_plus_1 = self.target_q.eval({self.target_s_t: s_t_plus_1})
+      q_t_plus_1 = self.target_network.q.eval({self.x: x_t, self.u: u_t})
 
       terminal = np.array(terminal) + 0.
       max_q_t_plus_1 = np.max(q_t_plus_1, axis=1)
-      target_q_t = (1. - terminal) * self.discount * max_q_t_plus_1 + reward
+      target_q_t = (1. - terminal) * self.discount * max_q_t_plus_1 + r_t
 
-      _, q_t, loss, summary_str = self.sess.run([self.optim, self.q, self.loss, self.q_summary], {
-        self.target_q_t: target_q_t,
-        self.action: action,
-        self.s_t: s_t,
-        self.learning_rate_step: self.step,
-      })
+      _, q_t, loss = self.sess.run(
+        [self.optim, self.pred_network.q, self.pred_entwork.loss], {
+          self.target_Q: target_q_t,
+          self.pred_network.x: x_t,
+          self.pred_network.u: u_t,
+        })
 
       total_loss += loss
 

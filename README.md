@@ -19,15 +19,9 @@ First, install prerequisites with:
 
     $ pip install tqdm gym[all]
 
-To train a model for Breakout:
+To train a model for an environment with a continuous action space:
 
-    $ python main.py --env=BipedalWalker-v2 --is_train=True
-    $ python main.py --env=BipedalWalker-v2 --is_train=True --display=True
-
-To test and record the screens with gym:
-
-    $ python main.py --env=BipedalWalker-v2 --is_train=False
-    $ python main.py --env=BipedalWalker-v2 --is_train=False --display=True
+(in progress)
 
 
 ## Results
@@ -38,6 +32,7 @@ To test and record the screens with gym:
 ## References
 
 - [rllab](https://github.com/rllab/rllab.git)
+- [keras implementation](https://gym.openai.com/evaluations/eval_CzoNQdPSAm0J3ikTBSTCg)
 
 
 ## Author

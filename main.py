@@ -7,6 +7,7 @@ flags = tf.app.flags
 
 flags.DEFINE_integer('memory_size', 100000, '')
 flags.DEFINE_float('noise', 0.1, 'The value of noise')
+flags.DEFINE_float('discount', 0.99, 'The discount factor of Q-learning')
 flags.DEFINE_string('env_name', 'BipedalWalker-v2', 'The name of environment')
 
 # training
@@ -31,7 +32,11 @@ random.seed(config.random_seed)
 
 def main(_):
   with tf.Session() as sess:
-    agent = NAF(sess, config.env_name, config.memory_size, config.batch_size)
+    agent = NAF(sess,
+                config.env_name,
+                config.memory_size,
+                config.batch_size,
+                config.discount)
 
     if config.is_train:
       agent.train(config.num_train,
