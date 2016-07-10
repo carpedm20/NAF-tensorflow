@@ -3,11 +3,12 @@ import numpy as np
 from tqdm import tqdm
 import tensorflow as tf
 
+from .agent import Agent
 from .network import Network
 from .memory import Memory
 from .utils import get_timestamp
 
-class NAF(object):
+class NAF(Agent):
   def __init__(self,
                sess,
                model_dir,
@@ -70,17 +71,21 @@ class NAF(object):
       .minimize(self.pred_network.loss, var_list=self.pred_network.variables, global_step=step_op)
 
     tf.initialize_all_variables().run()
-    saver = tf.train.Saver(self.pred_network.variables + [step_op], max_to_keep=30)
+
+    self.saver = tf.train.Saver(self.pred_network.variables + [step_op], max_to_keep=30)
+    self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
+
+    self.load_model()
 
     if monitor:
       self.env.monitor.start('/tmp/%s-%s' % (self.env_name, get_timestamp()))
 
     self.step = step_op.eval()
-    self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
 
     self.target_network.update_from(self.pred_network)
     for episode in tqdm(range(0, self.max_episode), ncols=70):
       state = self.env.reset()
+      episode_reward = 0
 
       for t in xrange(0, self.max_step):
         self.step += 1
@@ -93,7 +98,11 @@ class NAF(object):
         # 3. perceive
         self.perceive(state, reward, action, terminal)
 
+        episode_reward += 1
+
         if terminal: break
+
+      print("episode_reward: %d" % episode_reward)
 
     if mointor:
       self.env.monitor.close()
@@ -131,9 +140,10 @@ class NAF(object):
 
     if self.step % self.target_q_update_step == self.target_q_update_step - 1:
       self.target_network.update_from(self.pred_network)
+      self.save_model(self.step)
 
   def q_learning_minibatch(self):
-    total_loss = 0
+    total_loss = 0.
 
     for iteration in xrange(self.max_update):
       x_t, u_t, r_t, x_t_plus_1, terminal = self.memory.sample()
@@ -156,4 +166,5 @@ class NAF(object):
         })
 
       total_loss += loss
-    return total_loss
+
+    #print("average_loss: %f" % (total_loss / iteration))
