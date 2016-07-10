@@ -6,15 +6,16 @@ from .memory import Memory
 from .utils import get_timestamp
 
 class NAF(object):
-  def __init__(self, env_name, sess):
+  def __init__(self, sess, env_name, memory_size, batch_size):
     self.env_name = env_name
     self.env = gym.make(env_name)
+
     assert isinstance(self.env.observation_space, gym.spaces.Box), \
       "observation space must be continuous"
     assert isinstance(self.env.action_space, gym.spaces.Box), \
       "action space must be continuous"
 
-    self.memory = Memory()
+    self.memory = Memory(self.env, batch_size, memory_size)
 
     self.pred_network = Network(
       session=sess,
@@ -58,9 +59,8 @@ class NAF(object):
 
         action = self.pred_network.predict([state])[0]
 
-        state_, reward, terminal, _ = self.env.step(action)
-        self.memory.add(state, action, reward, terminal, state_)
-        state = state_
+        state, reward, terminal, _ = self.env.step(action)
+        self.memory.add(state, reward, action, terminal)
 
         if self.memory.size > learn_start:
           loss = 0
