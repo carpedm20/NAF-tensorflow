@@ -13,9 +13,10 @@ flags.DEFINE_string('env_name', 'BipedalWalker-v2', 'The name of environment')
 # training
 flags.DEFINE_integer('max_update', 10, '')
 flags.DEFINE_integer('batch_size', 32, '')
+flags.DEFINE_integer('learn_start', 100, '')
 flags.DEFINE_integer('max_step', 10000, '')
-flags.DEFINE_integer('learn_start', 10, '')
-flags.DEFINE_integer('num_train', 100000, '')
+flags.DEFINE_integer('max_episode', 100000, '')
+flags.DEFINE_integer('target_q_update_step', 1000, '')
 flags.DEFINE_float('learning_rate', 1e-4, 'The value of learning rate')
 
 # misc.
@@ -34,18 +35,17 @@ def main(_):
   with tf.Session() as sess:
     agent = NAF(sess,
                 config.env_name,
+                config.discount,
                 config.memory_size,
                 config.batch_size,
-                config.discount)
+                config.learning_rate,
+                config.learn_start,
+                config.max_step,
+                config.max_update,
+                config.max_episode)
 
     if config.is_train:
-      agent.train(config.num_train,
-                  config.learning_rate,
-                  config.learn_start,
-                  config.max_step,
-                  config.max_update,
-                  config.monitor,
-                  config.display)
+      agent.train(config.monitor, config.display)
     else:
       agent.play()
 

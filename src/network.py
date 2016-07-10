@@ -133,7 +133,7 @@ class Network(object):
       self.variables = get_variables(name)
 
   def predict(self, state):
-    return self.sess.run(self.mu, {self.input: state, self.is_train: False})
+    return self.sess.run(self.mu, {self.x: state, self.is_train: False})
 
   def make_copy_from(self, network):
     self.assign_op = {}

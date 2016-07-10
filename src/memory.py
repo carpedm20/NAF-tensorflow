@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 class Memory:
-  def __init__(self, env, batch_size, memory_size, history_length=1, data_format='NCHW'):
+  def __init__(self, env, batch_size, memory_size, data_format='NCHW'):
     self.data_format = data_format
     self.memory_size = memory_size
     self.action_shape = env.action_space.shape
@@ -18,14 +18,13 @@ class Memory:
     self.count = 0
     self.current = 0
     self.batch_size = batch_size
-    self.history_length = history_length
 
     self.prestates = np.empty(
-        (self.batch_size, self.history_length) + self.observation_shape, dtype = np.float16)
+        (self.batch_size,) + self.observation_shape, dtype = np.float16)
     self.poststates = np.empty(
-        (self.batch_size, self.history_length) + self.observation_shape, dtype = np.float16)
+        (self.batch_size,) + self.observation_shape, dtype = np.float16)
     self.batch_actions = np.empty(
-        (self.batch_size, self.history_length) + self.action_shape, dtype = np.float16)
+        (self.batch_size,) + self.action_shape, dtype = np.float16)
 
   def add(self, screen, reward, action, terminal):
     self.rewards[self.current] = reward
@@ -38,21 +37,15 @@ class Memory:
 
   def get_state_from(self, array, index):
     index = index % self.count
-    if index >= self.history_length - 1:
-      return array[(index - (self.history_length - 1)):(index + 1), ...]
-    else:
-      indexes = [(index - i) % self.count for i in reversed(range(self.history_length))]
-      return array[indexes, ...]
+    return array[index:index + 1, ...]
 
   def sample(self):
     indexes = []
 
     while len(indexes) < self.batch_size:
       while True:
-        index = random.randint(self.history_length, self.count - 1)
-        if index >= self.current and index - self.history_length < self.current:
-          continue
-        if self.terminals[(index - self.history_length):index].any():
+        index = random.randint(0, self.count - 1)
+        if index >= self.current:
           continue
         break
       
@@ -71,7 +64,3 @@ class Memory:
         rewards, np.transpose(self.poststates, (0, 2, 3, 1)), terminals
     else:
       return self.prestates, actions, rewards, self.poststates, terminals
-
-  @property
-  def size(self):
-    return self.count
