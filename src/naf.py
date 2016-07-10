@@ -12,6 +12,8 @@ class NAF(object):
                sess,
                model_dir,
                env_name,
+               noise,
+               noise_scale,
                discount=0.99,
                memory_size=100000,
                batch_size=32,
@@ -25,12 +27,15 @@ class NAF(object):
     self.model_dir = model_dir
     self.env_name = env_name
     self.env = gym.make(env_name)
+    self.action_size = self.env.action_space.shape[0]
 
     assert isinstance(self.env.observation_space, gym.spaces.Box), \
       "observation space must be continuous"
     assert isinstance(self.env.action_space, gym.spaces.Box), \
       "action space must be continuous"
 
+    self.noise = noise
+    self.noise_scale = noise_scale
     self.discount = discount
     self.max_step = max_step
     self.max_update = max_update
@@ -74,19 +79,17 @@ class NAF(object):
     self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
 
     self.target_network.update_from(self.pred_network)
-
-    for episode in xrange(self.max_episode):
+    for episode in tqdm(range(0, self.max_episode), ncols=70):
       state = self.env.reset()
 
-      iterator = tqdm(range(self.step, self.max_step), ncols=70, initial=self.step)
-      for t in iterator:
+      for t in xrange(0, self.max_step):
         self.step += 1
         if display: self.env.render()
 
         # 1. predict
         action = self.predict(state)
         # 2. step
-        state, reward, terminal, _ = self.env.step(action)
+        state, reward, terminal, _ = self.env.step(self.env.action_space.sample())
         # 3. perceive
         self.perceive(state, reward, action, terminal)
 
@@ -96,7 +99,27 @@ class NAF(object):
       self.env.monitor.close()
 
   def predict(self, state):
-    action = self.pred_network.predict([state])[0]
+    u = self.pred_network.predict([state])[0]
+
+    # from https://gym.openai.com/evaluations/eval_CzoNQdPSAm0J3ikTBSTCg
+    # add exploration noise to the action
+    if self.noise == 'linear_decay':
+      action = u + np.random.randn(self.action_size) / (i_episode + 1)
+    elif self.noise == 'exp_decay':
+      action = u + np.random.randn(self.action_size) * 10 ** -i_episode
+    elif self.noise == 'fixed':
+      action = u + np.random.randn(self.action_size) * self.noise_scale
+    elif self.noise == 'covariance':
+      if self.action_size == 1:
+        std = np.minimum(self.noise_scale / P(x)[0], 1)
+        #print "std:", std
+        action = np.random.normal(u, std, size=(1,))
+      else:
+        cov = np.minimum(np.linalg.inv(P(x)[0]) * self.noise_scale, 1)
+        #print "covariance:", cov
+        action = np.random.multivariate_normal(u, cov)
+    else:
+      assert False
 
     return action
 

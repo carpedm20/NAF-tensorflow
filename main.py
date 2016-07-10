@@ -7,7 +7,8 @@ from utils import get_model_dir
 flags = tf.app.flags
 
 flags.DEFINE_integer('memory_size', 100000, '')
-flags.DEFINE_float('noise', 0.1, 'The value of noise')
+flags.DEFINE_string('noise', 'fixed', 'The type of noise')
+flags.DEFINE_float('noise_scale', 0.01, 'The scale of noise')
 flags.DEFINE_float('discount', 0.99, 'The discount factor of Q-learning')
 flags.DEFINE_string('env_name', 'BipedalWalker-v2', 'The name of environment')
 
@@ -39,6 +40,8 @@ def main(_):
     agent = NAF(sess,
                 model_dir,
                 config.env_name,
+                config.noise,
+                config.noise_scale,
                 config.discount,
                 config.memory_size,
                 config.batch_size,
