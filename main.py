@@ -16,6 +16,7 @@ flags.DEFINE_string('env_name', 'BipedalWalker-v2', 'The name of environment')
 flags.DEFINE_integer('max_update', 10, '')
 flags.DEFINE_integer('batch_size', 100, '')
 flags.DEFINE_integer('learn_start', 100, '')
+flags.DEFINE_integer('test_epoch', 20, '')
 flags.DEFINE_integer('max_step', 200, '')
 flags.DEFINE_integer('max_episode', 100000, '')
 flags.DEFINE_integer('target_q_update_step', 1000, '')
@@ -49,7 +50,9 @@ def main(_):
                 config.learn_start,
                 config.max_step,
                 config.max_update,
-                config.max_episode)
+                config.max_episode,
+                config.test_epoch,
+                config.target_q_update_step)
 
     if config.is_train:
       agent.train(config.monitor, config.display)

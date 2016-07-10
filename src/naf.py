@@ -4,9 +4,10 @@ from tqdm import tqdm
 import tensorflow as tf
 
 from .agent import Agent
-from .network import Network
 from .memory import Memory
+from .network import Network
 from .utils import get_timestamp
+from .statistic import Statistic
 
 class NAF(Agent):
   def __init__(self,
@@ -23,6 +24,7 @@ class NAF(Agent):
                max_step=10000,
                max_update=10000,
                max_episode=1000000,
+               test_epoch=20,
                target_q_update_step=1000):
     self.sess = sess
     self.model_dir = model_dir
@@ -62,33 +64,24 @@ class NAF(Agent):
       hidden_dims=[200, 200],
       name='target_network',
     )
-
     self.target_network.make_copy_from(self.pred_network)
 
+    self.stat = Statistic(sess, test_epoch, learn_start, model_dir, self.pred_network.variables)
+
   def train(self, monitor=False, display=False):
-    step_op = tf.Variable(0, trainable=False, name='step')
     self.optim = tf.train.AdamOptimizer(self.learning_rate) \
-      .minimize(self.pred_network.loss, var_list=self.pred_network.variables, global_step=step_op)
+      .minimize(self.pred_network.loss, var_list=self.pred_network.variables)
 
-    tf.initialize_all_variables().run()
-
-    self.saver = tf.train.Saver(self.pred_network.variables + [step_op], max_to_keep=30)
-    self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
-
-    self.load_model()
+    self.stat.load_model()
 
     if monitor:
       self.env.monitor.start('/tmp/%s-%s' % (self.env_name, get_timestamp()))
 
-    self.step = step_op.eval()
-
     self.target_network.update_from(self.pred_network)
-    for episode in tqdm(range(0, self.max_episode), ncols=70):
+    for self.idx_episode in tqdm(range(0, self.max_episode), ncols=70):
       state = self.env.reset()
-      episode_reward = 0
 
       for t in xrange(0, self.max_step):
-        self.step += 1
         if display: self.env.render()
 
         # 1. predict
@@ -96,13 +89,12 @@ class NAF(Agent):
         # 2. step
         state, reward, terminal, _ = self.env.step(self.env.action_space.sample())
         # 3. perceive
-        self.perceive(state, reward, action, terminal)
+        q, loss, is_update = self.perceive(state, reward, action, terminal)
 
-        episode_reward += 1
+        if self.stat and q != None and loss != None:
+          self.stat.on_step(action, reward, terminal, q, loss, is_update)
 
         if terminal: break
-
-      print("episode_reward: %d" % episode_reward)
 
     if mointor:
       self.env.monitor.close()
@@ -113,9 +105,9 @@ class NAF(Agent):
     # from https://gym.openai.com/evaluations/eval_CzoNQdPSAm0J3ikTBSTCg
     # add exploration noise to the action
     if self.noise == 'linear_decay':
-      action = u + np.random.randn(self.action_size) / (i_episode + 1)
+      action = u + np.random.randn(self.action_size) / (idx_episode + 1)
     elif self.noise == 'exp_decay':
-      action = u + np.random.randn(self.action_size) * 10 ** -i_episode
+      action = u + np.random.randn(self.action_size) * 10 ** -idx_episode
     elif self.noise == 'fixed':
       action = u + np.random.randn(self.action_size) * self.noise_scale
     elif self.noise == 'covariance':
@@ -135,12 +127,16 @@ class NAF(Agent):
   def perceive(self, state, reward, action, terminal):
     self.memory.add(state, reward, action, terminal)
 
+    q, loss = None, None
     if self.memory.count > self.learn_start:
-      self.q_learning_minibatch()
+      q, loss = self.q_learning_minibatch()
 
-    if self.step % self.target_q_update_step == self.target_q_update_step - 1:
+    is_update = False
+    if self.stat.t % self.target_q_update_step == self.target_q_update_step - 1:
       self.target_network.update_from(self.pred_network)
-      self.save_model(self.step)
+      is_update = True
+
+    return q, loss, is_update
 
   def q_learning_minibatch(self):
     total_loss = 0.
@@ -167,4 +163,4 @@ class NAF(Agent):
 
       total_loss += loss
 
-    #print("average_loss: %f" % (total_loss / iteration))
+    return q_t, loss
