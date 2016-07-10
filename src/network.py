@@ -62,7 +62,7 @@ class Network(object):
             return fully_connected(
               hidden_layer,
               num_outputs=num_outputs,
-              activation_fn=output_activation_fn,
+              activation_fn=tf.tanh if scope == 'mu' else output_activation_fn,
               weights_initializer=output_weights_initializer,
               biases_initializer=output_biases_initializer,
               scope='out',

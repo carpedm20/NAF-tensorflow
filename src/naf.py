@@ -1,4 +1,5 @@
 import gym
+from tqdm import tqdm
 import tensorflow as tf
 
 from .network import Network
@@ -20,14 +21,14 @@ class NAF(object):
     self.pred_network = Network(
       session=sess,
       input_shape=self.env.observation_space.shape,
-      action_size=self.env.action_space.shape[0] + 1,
+      action_size=self.env.action_space.shape[0],
       hidden_dims=[200, 200],
       name='pred_network',
     )
     self.target_network = Network(
       session=sess,
       input_shape=self.env.observation_space.shape,
-      action_size=self.env.action_space.shape[0] + 1,
+      action_size=self.env.action_space.shape[0],
       hidden_dims=[200, 200],
       name='target_network',
     )
@@ -51,7 +52,11 @@ class NAF(object):
 
     if monitor:
       self.env.monitor.start('/tmp/%s-%s' % (self.env_name, get_timestamp()))
-    for episode in xrange(num_train):
+
+    start_step = step_op.eval()
+    iterator = tqdm(range(start_step, num_train), ncols=70, initial=start_step)
+
+    for episode in iterator:
       state = self.env.reset()
 
       for t in xrange(max_step):
@@ -63,12 +68,32 @@ class NAF(object):
         self.memory.add(state, reward, action, terminal)
 
         if self.memory.size > learn_start:
-          loss = 0
-
-          for iteration in xrange(max_update):
-            prestates, actions, rewards, terminals, poststates = self.memory.sample()
+          self.q_learning_minibatch()
 
         if terminal: break
 
     if mointor:
       self.env.monitor.close()
+
+  def q_learning_minibatch(self):
+    total_loss = 0
+
+    for iteration in xrange(max_update):
+      s_t, action, reward, s_t_plus_1, terminal = self.memory.sample()
+
+      q_t_plus_1 = self.target_q.eval({self.target_s_t: s_t_plus_1})
+
+      terminal = np.array(terminal) + 0.
+      max_q_t_plus_1 = np.max(q_t_plus_1, axis=1)
+      target_q_t = (1. - terminal) * self.discount * max_q_t_plus_1 + reward
+
+      _, q_t, loss, summary_str = self.sess.run([self.optim, self.q, self.loss, self.q_summary], {
+        self.target_q_t: target_q_t,
+        self.action: action,
+        self.s_t: s_t,
+        self.learning_rate_step: self.step,
+      })
+
+      total_loss += loss
+
+    return total_loss

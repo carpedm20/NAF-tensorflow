@@ -56,9 +56,9 @@ class Memory:
           continue
         break
       
-      self.prestates[len(indexes), ...] = self.get_state(self.screens, index - 1)
-      self.poststates[len(indexes), ...] = self.get_state(self.screens, index)
-      self.batch_actions[len(indexes), ...] = self.get_state(self.actions, index - 1)
+      self.prestates[len(indexes), ...] = self.get_state_from(self.screens, index - 1)
+      self.poststates[len(indexes), ...] = self.get_state_from(self.screens, index)
+      self.batch_actions[len(indexes), ...] = self.get_state_from(self.actions, index - 1)
 
       indexes.append(index)
 
@@ -71,3 +71,7 @@ class Memory:
         rewards, np.transpose(self.poststates, (0, 2, 3, 1)), terminals
     else:
       return self.prestates, actions, rewards, self.poststates, terminals
+
+  @property
+  def size(self):
+    return self.count

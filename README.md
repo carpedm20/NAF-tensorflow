@@ -2,6 +2,8 @@
 
 TensorFlow implementation of [Continuous Deep q-Learning with Model-based Acceleration](http://arxiv.org/abs/1603.00748).
 
+![algorithm](https://github.com/carpedm20/naf-tensorflow/blob/master/assets/algorithm.png)
+
 
 ## Requirements
 
@@ -19,13 +21,13 @@ First, install prerequisites with:
 
 To train a model for Breakout:
 
-    $ python main.py --env=CartPole-v0 --is_train=True
-    $ python main.py --env=CartPole-v0 --is_train=True --display=True
+    $ python main.py --env=BipedalWalker-v2 --is_train=True
+    $ python main.py --env=BipedalWalker-v2 --is_train=True --display=True
 
 To test and record the screens with gym:
 
-    $ python main.py --is_train=False
-    $ python main.py --is_train=False --display=True
+    $ python main.py --env=BipedalWalker-v2 --is_train=False
+    $ python main.py --env=BipedalWalker-v2 --is_train=False --display=True
 
 
 ## Results
