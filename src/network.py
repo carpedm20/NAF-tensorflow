@@ -21,16 +21,10 @@ class Network(object):
                name='NAF'):
     self.sess = session
 
-    # if batch_norm is used, apply activation_fn after batch norm,
-    # and remove biases which is redundant
-    if use_batch_norm:
-      activation_fn_for_batch_norm = hidden_activation_fn
-      hidden_activation_fn = None
-      hidden_biases_initializer = None
-
     with tf.variable_scope(name):
       x = hidden_layer = tf.placeholder(tf.float32, [None] + list(input_shape), name='observations')
       u = tf.placeholder(tf.float32, [None, action_size], name='actions')
+      is_train = tf.placeholder(tf.bool, name='is_train')
 
       n_layers = len(hidden_dims) + 1
       if n_layers > 1:
@@ -39,37 +33,36 @@ class Network(object):
       else:
         action_merge_layer = 1
 
-      is_train = tf.placeholder(tf.bool, name='is_train')
+      hidden_layer = batch_norm(x, is_train)
+
+      for idx, hidden_dim in enumerate(hidden_dims):
+        # if batch_norm is used, apply activation_fn after batch norm,
+        # and remove biases which is redundant
+        hidden_layer = fully_connected(
+          hidden_layer,
+          num_outputs=hidden_dim,
+          activation_fn=hidden_activation_fn if not use_batch_norm else None,
+          weights_initializer=hidden_weights_initializer,
+          biases_initializer=hidden_biases_initializer,
+          scope='hid%d' % idx,
+        )
+
+        if use_batch_norm and idx != action_merge_layer:
+          hidden_layer = hidden_activation_fn(batch_norm(hidden_layer, is_train))
+
+      def make_output(layer, num_outputs, activation_fn=None, scope='out'):
+        return fully_connected(
+          layer,
+          num_outputs=num_outputs,
+          activation_fn=output_activation_fn if activation_fn == None else activation_fn,
+          weights_initializer=output_weights_initializer,
+          biases_initializer=output_biases_initializer,
+          scope=scope,
+        )
 
       with tf.variable_scope('advantage'):
-        def make_network(input_layer, is_train, num_outputs, scope):
-          with tf.variable_scope(scope):
-            hidden_layer = batch_norm(input_layer, is_train)
-
-            for idx, hidden_dim in enumerate(hidden_dims):
-              hidden_layer = fully_connected(
-                hidden_layer,
-                num_outputs=hidden_dim,
-                activation_fn=hidden_activation_fn,
-                weights_initializer=hidden_weights_initializer,
-                biases_initializer=hidden_biases_initializer,
-                scope='hid%d' % idx,
-              )
-
-              if use_batch_norm:
-                hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train))
-
-            return fully_connected(
-              hidden_layer,
-              num_outputs=num_outputs,
-              activation_fn=tf.tanh if scope == 'mu' else output_activation_fn,
-              weights_initializer=output_weights_initializer,
-              biases_initializer=output_biases_initializer,
-              scope='out',
-            )
-
-        l = make_network(x, is_train, (action_size * (action_size + 1))/2, 'l')
-        mu = make_network(x, is_train, action_size, 'mu')
+        l = make_output(hidden_layer, (action_size * (action_size + 1))/2, scope='l')
+        mu = make_output(hidden_layer, action_size, scope='mu')
 
         columns = []
         for idx in xrange(action_size):
@@ -84,49 +77,18 @@ class Network(object):
         A = tf.reshape(A, [-1, 1])
 
       with tf.variable_scope('value'):
-        hidden_layer = batch_norm(x, is_train)
-
-        for idx, hidden_dim in enumerate(hidden_dims):
-          if idx == action_merge_layer:
-            hidden_layer = tf.concat(1, [hidden_layer, u])
-
-          hidden_layer = fully_connected(
-            hidden_layer,
-            num_outputs=hidden_dim,
-            activation_fn=hidden_activation_fn,
-            weights_initializer=hidden_weights_initializer,
-            biases_initializer=hidden_biases_initializer,
-            scope='hid%d' % idx,
-          )
-
-          if use_batch_norm and idx != action_merge_layer:
-            hidden_layer = activation_fn_for_batch_norm(batch_norm(hidden_layer, is_train))
-
-        V = fully_connected(
-          hidden_layer,
-          num_outputs=1,
-          activation_fn=output_activation_fn,
-          weights_initializer=output_weights_initializer,
-          biases_initializer=output_biases_initializer,
-          scope='V',
-        )
+        V = make_output(hidden_layer, 1, scope='V')
 
       Q = A + V
 
       with tf.variable_scope('optimizer'):
-        true_action = tf.placeholder(tf.int64, [None], name='action')
-
-        action_one_hot = tf.one_hot(true_action, action_size, 1.0, 0.0, name='action_one_hot')
-        acted_Q = tf.reduce_sum(Q * action_one_hot, reduction_indices=1, name='q_acted')
-
         target_Q = tf.placeholder(tf.float32, [None], name='target_Q')
-        loss = tf.reduce_mean(tf.square(target_Q - acted_Q), name='loss')
+        loss = tf.reduce_mean(tf.square(target_Q - Q), name='loss')
 
       self.x = x
       self.u = u
       self.loss = loss
       self.target_Q = target_Q
-      self.true_action = true_action
       self.is_train = is_train
 
       self.V, self.L, self.P, self.mu, self.A, self.Q = V, L, P, mu, A, Q

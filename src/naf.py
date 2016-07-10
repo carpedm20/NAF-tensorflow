@@ -10,6 +10,7 @@ from .utils import get_timestamp
 class NAF(object):
   def __init__(self,
                sess,
+               model_dir,
                env_name,
                discount=0.99,
                memory_size=100000,
@@ -21,6 +22,7 @@ class NAF(object):
                max_episode=1000000,
                target_q_update_step=1000):
     self.sess = sess
+    self.model_dir = model_dir
     self.env_name = env_name
     self.env = gym.make(env_name)
 
@@ -60,7 +62,7 @@ class NAF(object):
   def train(self, monitor=False, display=False):
     step_op = tf.Variable(0, trainable=False, name='step')
     self.optim = tf.train.AdamOptimizer(self.learning_rate) \
-      .minimize(self.pred_network.loss, global_step=step_op)
+      .minimize(self.pred_network.loss, var_list=self.pred_network.variables, global_step=step_op)
 
     tf.initialize_all_variables().run()
     saver = tf.train.Saver(self.pred_network.variables + [step_op], max_to_keep=30)
@@ -70,6 +72,8 @@ class NAF(object):
 
     start_step = step_op.eval()
     iterator = tqdm(range(start_step, self.max_episode), ncols=70, initial=start_step)
+
+    self.writer = tf.train.SummaryWriter('./logs/%s' % self.model_dir, self.sess.graph)
 
     for self.step in iterator:
       state = self.env.reset()
@@ -122,9 +126,10 @@ class NAF(object):
 
       _, q_t, loss = self.sess.run(
         [self.optim, self.pred_network.Q, self.pred_network.loss], {
-          self.target_network.Q: target_q_t,
+          self.pred_network.target_Q: target_q_t,
           self.pred_network.x: x_t,
           self.pred_network.u: u_t,
+          self.pred_network.is_train: True,
         })
 
       total_loss += loss

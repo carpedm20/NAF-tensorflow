@@ -2,6 +2,7 @@ import random
 import tensorflow as tf
 
 from src.naf import NAF
+from utils import get_model_dir
 
 flags = tf.app.flags
 
@@ -32,8 +33,11 @@ tf.set_random_seed(config.random_seed)
 random.seed(config.random_seed)
 
 def main(_):
+  model_dir = get_model_dir(config, ['is_train', 'random_seed', 'monitor', 'display'])
+
   with tf.Session() as sess:
     agent = NAF(sess,
+                model_dir,
                 config.env_name,
                 config.discount,
                 config.memory_size,
