@@ -32,7 +32,15 @@ To test and record the screens with gym:
 
 ## Results
 
-(in progress)
+Training details of Pendulum-v0.
+
+    $ python main.py --env=Pendulum-v0 --learning_rate=0.001 --hidden_dims=[100,100] # light green
+    $ python main.py --env=Pendulum-v0 --learning_rate=0.001 --hidden_dims=[100,100] --use_batch_norm=True # purple
+    $ python main.py --env=Pendulum-v0 --learning_rate=0.001 --hidden_dims=[100,100] --hidden_activation_fn=relu # yellow
+    $ python main.py --env=Pendulum-v0 --learning_rate=0.0001 --hidden_dims=[200,200] # red
+    $ python main.py --env=Pendulum-v0 --learning_rate=0.0001 --hidden_dims=[200,200] --use_batch_norm=True # orange
+
+![Pendulum-v0_2016-07-12](https://github.com/carpedm20/naf-tensorflow/blob/master/assets/Pendulum-v0_2016-07-12.png)
 
 
 ## References
