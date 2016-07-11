@@ -21,7 +21,13 @@ First, install prerequisites with:
 
 To train a model for an environment with a continuous action space:
 
-(in progress)
+    $ python main.py --env=Pendulum-v0 --is_train=True
+    $ python main.py --env=Pendulum-v0 --is_train=True --display=True
+
+To test and record the screens with gym:
+
+    $ python main.py --env=Pendulum-v0 --is_train=False
+    $ python main.py --env=Pendulum-v0 --is_train=False --display=True
 
 
 ## Results
