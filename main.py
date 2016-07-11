@@ -13,14 +13,12 @@ flags.DEFINE_integer('memory_size', 10**6, 'size of memory')
 flags.DEFINE_boolean('use_batch_norm', False, 'use batch normalization or not')
 flags.DEFINE_float('l1_reg_scale', None, 'scale of l1 regularization')
 flags.DEFINE_float('l2_reg_scale', 0.01, 'scale of l2 regularization')
-flags.DEFINE_string('hidden_dims', '[100, 100]', 'dimension of hidden layers')
+flags.DEFINE_string('hidden_dims', '[200, 200]', 'dimension of hidden layers')
 flags.DEFINE_string('hidden_activation_fn', 'tanh', 'type of activation function of hidden layer [tanh, relu]')
 
 # training
-flags.DEFINE_string('noise', 'linear_decay', 'type of noise')
-flags.DEFINE_float('noise_scale', 0.01, 'scale of noise')
 flags.DEFINE_float('discount', 0.99, 'discount factor of Q-learning')
-flags.DEFINE_float('learning_rate', 1e-3, 'value of learning rate')
+flags.DEFINE_float('learning_rate', 1e-4, 'value of learning rate')
 flags.DEFINE_float('decay', 0.99, 'decay for moving average')
 flags.DEFINE_float('epsilon', 1e-4, 'epsilon for batch normalization')
 flags.DEFINE_float('tau', 0.001, 'tau of soft target update')
@@ -68,7 +66,6 @@ def main(_):
     agent = NAF(sess, model_dir, conf.env_name,
                 conf.use_batch_norm, conf.l1_reg_scale, conf.l2_reg_scale,
                 conf.hidden_dims, conf.hidden_activation_fn,
-                conf.noise, conf.noise_scale,
                 conf.tau, conf.decay, conf.epsilon, conf.discount,
                 conf.memory_size, conf.batch_size,
                 conf.learning_rate,

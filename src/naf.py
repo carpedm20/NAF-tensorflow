@@ -7,6 +7,7 @@ from logging import getLogger
 from .memory import Memory
 from .network import Network
 from .utils import get_timestamp
+from .exploration import OUExploration
 from .statistic import Statistic
 
 logger = getLogger(__name__)
@@ -16,7 +17,6 @@ class NAF(object):
                sess, model_dir, env_name,
                use_batch_norm, l1_reg_scale, l2_reg_scale,
                hidden_dims, hidden_activation_fn,
-               noise, noise_scale,
                tau, decay, epsilon, discount,
                memory_size, batch_size,
                learning_rate,
@@ -25,6 +25,7 @@ class NAF(object):
     self.model_dir = model_dir
     self.env_name = env_name
     self.env = gym.make(env_name)
+    self.strategy = OUExploration(self.env)
     self.action_size = self.env.action_space.shape[0]
 
     assert isinstance(self.env.observation_space, gym.spaces.Box), \
@@ -32,8 +33,6 @@ class NAF(object):
     assert isinstance(self.env.action_space, gym.spaces.Box), \
       "action space must be continuous"
 
-    self.noise = noise
-    self.noise_scale = noise_scale
     self.discount = discount
     self.max_step = max_step
     self.max_update = max_update
@@ -96,6 +95,7 @@ class NAF(object):
 
         episode_reward += reward
         if terminal:
+          self.strategy.reset()
           break
 
       logger.info('Episode reward: %s' % episode_reward)
@@ -105,24 +105,7 @@ class NAF(object):
 
   def predict(self, state):
     u = self.pred_network.predict([state])[0]
-
-    # from https://gym.openai.com/evaluations/eval_CzoNQdPSAm0J3ikTBSTCg
-    # add exploration noise to the action
-    if self.noise == 'linear_decay':
-      action = u + np.random.randn(self.action_size) / (self.idx_episode + 1)
-    elif self.noise == 'exp_decay':
-      action = u + np.random.randn(self.action_size) * 10 ** -self.idx_episode
-    elif self.noise == 'fixed':
-      action = u + np.random.randn(self.action_size) * self.noise_scale
-    elif self.noise == 'covariance':
-      if self.action_size == 1:
-        std = np.minimum(self.noise_scale / P(x)[0], 1)
-        action = np.random.normal(u, std, size=(1,))
-      else:
-        cov = np.minimum(np.linalg.inv(P(x)[0]) * self.noise_scale, 1)
-        action = np.random.multivariate_normal(u, cov)
-    else:
-      assert False
+    action = self.strategy.add_noise(u)
 
     return action
 
