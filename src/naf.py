@@ -2,6 +2,7 @@ import gym
 import numpy as np
 from tqdm import tqdm
 import tensorflow as tf
+from logging import getLogger
 
 from .agent import Agent
 from .memory import Memory
@@ -9,23 +10,25 @@ from .network import Network
 from .utils import get_timestamp
 from .statistic import Statistic
 
+logger = getLogger(__name__)
+
+def step(env, action):
+  if isinstance(env.action_space, gym.spaces.box.Box):
+    lb, ub = env.action_space.low, env.action_space.high
+    scaled_action = lb + (action + 1.) * 0.5 * (ub - lb)
+    scaled_action = np.clip(scaled_action, lb, ub)
+  else:
+    scaled_action = action
+  return env.step(scaled_action)
+
 class NAF(Agent):
   def __init__(self,
-               sess,
-               model_dir,
-               env_name,
-               noise,
-               noise_scale,
-               discount=0.99,
-               memory_size=100000,
-               batch_size=32,
-               learning_rate=1e-4,
-               learn_start=10,
-               max_step=10000,
-               max_update=10000,
-               max_episode=1000000,
-               test_epoch=20,
-               target_q_update_step=1000):
+               sess, model_dir, env_name, hidden_dims,
+               noise, noise_scale,
+               tau, decay, epsilon, discount,
+               memory_size, batch_size,
+               learning_rate,
+               max_step, max_update, max_episode, test_step):
     self.sess = sess
     self.model_dir = model_dir
     self.env_name = env_name
@@ -43,30 +46,31 @@ class NAF(Agent):
     self.max_step = max_step
     self.max_update = max_update
     self.max_episode = max_episode
-    self.batch_size = memory_size
-    self.learn_start = learn_start
+    self.batch_size = batch_size
     self.learning_rate = learning_rate
-    self.target_q_update_step = target_q_update_step
 
     self.memory = Memory(self.env, batch_size, memory_size)
 
-    self.pred_network = Network(
-      session=sess,
-      input_shape=self.env.observation_space.shape,
-      action_size=self.env.action_space.shape[0],
-      hidden_dims=[200, 200],
-      name='pred_network',
-    )
-    self.target_network = Network(
-      session=sess,
-      input_shape=self.env.observation_space.shape,
-      action_size=self.env.action_space.shape[0],
-      hidden_dims=[200, 200],
-      name='target_network',
-    )
-    self.target_network.make_copy_from(self.pred_network)
+    shared_args = {
+      'session': sess,
+      'input_shape': self.env.observation_space.shape,
+      'action_size': self.env.action_space.shape[0],
+      'hidden_dims': hidden_dims,
+      'decay': decay, 'epsilon': epsilon,
+    }
 
-    self.stat = Statistic(sess, test_epoch, learn_start, model_dir, self.pred_network.variables)
+    logger.info("Creating prediction network...")
+    self.pred_network = Network(
+      name='pred_network', **shared_args
+    )
+
+    logger.info("Creating target network...")
+    self.target_network = Network(
+      name='target_network', **shared_args
+    )
+    self.target_network.make_soft_update_from(self.pred_network, tau)
+
+    self.stat = Statistic(sess, test_step, 0, model_dir, self.pred_network.variables)
 
   def train(self, monitor=False, display=False):
     self.optim = tf.train.AdamOptimizer(self.learning_rate) \
@@ -77,7 +81,7 @@ class NAF(Agent):
     if monitor:
       self.env.monitor.start('/tmp/%s-%s' % (self.env_name, get_timestamp()))
 
-    self.target_network.update_from(self.pred_network)
+    self.target_network.hard_copy_from(self.pred_network)
     for self.idx_episode in tqdm(range(0, self.max_episode), ncols=70):
       state = self.env.reset()
 
@@ -87,12 +91,12 @@ class NAF(Agent):
         # 1. predict
         action = self.predict(state)
         # 2. step
-        state, reward, terminal, _ = self.env.step(self.env.action_space.sample())
+        state, reward, terminal, _ = step(self.env, action)
         # 3. perceive
-        q, loss, is_update = self.perceive(state, reward, action, terminal)
+        q, v, a, loss, is_update = self.perceive(state, reward, action, terminal)
 
-        if self.stat and q != None and loss != None:
-          self.stat.on_step(action, reward, terminal, q, loss, is_update)
+        if self.stat and is_update:
+          self.stat.on_step(action, reward, terminal, q, v, a, loss, is_update)
 
         if terminal: break
 
@@ -105,9 +109,9 @@ class NAF(Agent):
     # from https://gym.openai.com/evaluations/eval_CzoNQdPSAm0J3ikTBSTCg
     # add exploration noise to the action
     if self.noise == 'linear_decay':
-      action = u + np.random.randn(self.action_size) / (idx_episode + 1)
+      action = u + np.random.randn(self.action_size) / (self.idx_episode + 1)
     elif self.noise == 'exp_decay':
-      action = u + np.random.randn(self.action_size) * 10 ** -idx_episode
+      action = u + np.random.randn(self.action_size) * 10 ** -self.idx_episode
     elif self.noise == 'fixed':
       action = u + np.random.randn(self.action_size) * self.noise_scale
     elif self.noise == 'covariance':
@@ -127,40 +131,93 @@ class NAF(Agent):
   def perceive(self, state, reward, action, terminal):
     self.memory.add(state, reward, action, terminal)
 
-    q, loss = None, None
-    if self.memory.count > self.learn_start:
-      q, loss = self.q_learning_minibatch()
-
-    is_update = False
-    if self.stat.t % self.target_q_update_step == self.target_q_update_step - 1:
-      self.target_network.update_from(self.pred_network)
+    if self.memory.count > self.batch_size:
       is_update = True
+      q, v, a, loss = self.q_learning_minibatch()
+    else:
+      is_update, q, v, a, loss = False, None, None, None, None
 
-    return q, loss, is_update
+    return q, v, a, loss, is_update
 
   def q_learning_minibatch(self):
-    total_loss = 0.
+    losses = []
+
+    #self.test_q_learning_minibatch()
 
     for iteration in xrange(self.max_update):
       x_t, u_t, r_t, x_t_plus_1, terminal = self.memory.sample()
-      q_t_plus_1 = self.target_network.Q.eval({
+
+      v = self.target_network.V.eval({
         self.target_network.x: x_t,
         self.target_network.u: u_t,
-        self.target_network.is_train: False,
+        self.target_network.is_training: False,
       })
 
-      terminal = np.array(terminal) + 0.
-      max_q_t_plus_1 = np.max(q_t_plus_1, axis=1)
-      target_q_t = (1. - terminal) * self.discount * max_q_t_plus_1 + r_t
-
-      _, q_t, loss = self.sess.run(
-        [self.optim, self.pred_network.Q, self.pred_network.loss], {
-          self.pred_network.target_Q: target_q_t,
+      target_v = self.discount * np.squeeze(v) + r_t
+      _, q_t, v_t, a_t, loss = self.sess.run([
+          self.optim,
+          self.pred_network.Q,
+          self.pred_network.V,
+          self.pred_network.A,
+          self.pred_network.loss
+        ], {
+          self.pred_network.target_y: target_v,
           self.pred_network.x: x_t,
           self.pred_network.u: u_t,
-          self.pred_network.is_train: True,
+          self.pred_network.is_training: True,
         })
+      losses.append(loss)
 
-      total_loss += loss
+      self.target_network.soft_update_from(self.pred_network)
 
-    return q_t, loss
+      logger.info("target_v: %s, q_t: %s, v_t: %s, a_t: %s, loss: %s" % (target_v[0], q_t[0], v_t[0], a_t[0], loss))
+
+    return q_t, v_t, a_t, np.mean(losses)
+
+  def test_q_learning_minibatch(self):
+    losses = []
+
+    x_t, u_t, r_t, x_t_plus_1, terminal = self.memory.sample(1)
+    x_t, u_t, r_t, x_t_plus_1, terminal = [x_t[0]], [u_t[0]], [r_t[0]], [x_t_plus_1[0]], [terminal[0]]
+
+    q_t, v_t, a_t = self.sess.run([
+        self.pred_network.Q,
+        self.pred_network.V,
+        self.pred_network.A,
+      ], {
+        self.pred_network.x: x_t,
+        self.pred_network.u: u_t,
+        self.pred_network.is_training: False,
+      })
+    print
+    logger.info("r_t: %s, q_t: %s, v_t: %s, a_t: %s" % (r_t, q_t, v_t, a_t))
+
+    v = self.target_network.V.eval({
+      self.target_network.x: x_t,
+      self.target_network.u: u_t,
+      self.target_network.is_training: False,
+    })
+
+    def minimize():
+      target_v = self.discount * np.squeeze(v, 1) + r_t
+      _, q_t, v_t, a_t, loss = self.sess.run([
+          self.optim,
+          self.pred_network.Q,
+          self.pred_network.V,
+          self.pred_network.A,
+          self.pred_network.loss
+        ], {
+          self.pred_network.target_y: target_v,
+          self.pred_network.x: x_t,
+          self.pred_network.u: u_t,
+          self.pred_network.is_training: True,
+        })
+      losses.append(loss)
+      self.target_network.soft_update_from(self.pred_network)
+
+      logger.info("target_v: %s, q_t: %s, v_t: %s, a_t: %s, loss: %s" % (target_v, q_t, v_t, a_t, loss))
+
+    minimize()
+    import ipdb; ipdb.set_trace() 
+
+    return q_t, v_t, a_t, np.mean(losses)

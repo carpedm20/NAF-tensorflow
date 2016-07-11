@@ -39,10 +39,13 @@ class Memory:
     index = index % self.count
     return array[index:index + 1, ...]
 
-  def sample(self):
+  def sample(self, count=None):
     indexes = []
 
-    while len(indexes) < self.batch_size:
+    if count == None:
+      count = self.batch_size
+
+    while len(indexes) < count:
       while True:
         index = random.randint(0, self.count - 1)
         if index >= self.current:

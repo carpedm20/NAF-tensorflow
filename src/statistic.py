@@ -1,6 +1,9 @@
 import os
 import numpy as np
 import tensorflow as tf
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 class Statistic(object):
   def __init__(self, sess, t_test, t_learn_start, model_dir, variables, max_to_keep=20):
@@ -21,7 +24,7 @@ class Statistic(object):
 
     with tf.variable_scope('summary'):
       scalar_summary_tags = [
-        'average/reward', 'average/loss', 'average/q',
+        'average/reward', 'average/loss', 'average/q', 'average/v', 'average/a',
         'episode/max reward', 'episode/min reward', 'episode/avg reward',
       ]
 
@@ -46,13 +49,17 @@ class Statistic(object):
     self.total_reward = 0.
     self.actions = []
     self.total_q = []
+    self.total_v = []
+    self.total_a = []
     self.ep_rewards = []
 
-  def on_step(self, action, reward, terminal, q, loss, is_update):
+  def on_step(self, action, reward, terminal, q, v, a, loss, is_update):
     self.t = self.t_add_op.eval(session=self.sess)
 
     if self.t >= self.t_learn_start:
       self.total_q.extend(q)
+      self.total_v.extend(v)
+      self.total_a.extend(a)
       self.actions.append(action)
 
       self.total_loss += loss
@@ -68,8 +75,10 @@ class Statistic(object):
       if is_update:
         self.update_count += 1
 
-      if self.num_game % self.t_test == self.t_test - 1 and self.update_count != 0:
+      if self.t % self.t_test == self.t_test - 1 and self.update_count != 0:
         avg_q = np.mean(self.total_q)
+        avg_v = np.mean(self.total_v)
+        avg_a = np.mean(self.total_a)
         avg_loss = self.total_loss / self.update_count
         avg_reward = self.total_reward / self.t_test
 
@@ -80,8 +89,8 @@ class Statistic(object):
         except:
           max_ep_reward, min_ep_reward, avg_ep_reward = 0, 0, 0
 
-        print '\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d' \
-            % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, self.num_game)
+        logger.info('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d' \
+            % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, self.num_game))
 
         if self.max_avg_ep_reward * 0.9 <= avg_ep_reward:
           self.save_model(self.t)
@@ -90,6 +99,8 @@ class Statistic(object):
         self.inject_summary({
             # scalar
             'average/q': avg_q,
+            'average/v': avg_v,
+            'average/a': avg_a,
             'average/loss': avg_loss,
             'average/reward': avg_reward,
             'episode/max reward': max_ep_reward,
@@ -109,7 +120,7 @@ class Statistic(object):
       self.writer.add_summary(summary_str, t)
 
   def save_model(self, t):
-    print(" [*] Saving checkpoints...")
+    logger.info("Saving checkpoints...")
     model_name = type(self).__name__
 
     if not os.path.exists(self.model_dir):
@@ -117,6 +128,7 @@ class Statistic(object):
     self.saver.save(self.sess, self.model_dir, global_step=t)
 
   def load_model(self):
+    logger.info("Loading checkpoints...")
     tf.initialize_all_variables().run()
 
     ckpt = tf.train.get_checkpoint_state(self.model_dir)
@@ -124,8 +136,8 @@ class Statistic(object):
       ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
       fname = os.path.join(self.model_dir, ckpt_name)
       self.saver.restore(self.sess, fname)
-      print(" [*] Load SUCCESS: %s" % fname)
+      logger.info("Load SUCCESS: %s" % fname)
     else:
-      print(" [!] Load FAILED: %s" % self.model_dir)
+      logger.info("Load FAILED: %s" % self.model_dir)
 
     self.t = self.t_add_op.eval(session=self.sess)
