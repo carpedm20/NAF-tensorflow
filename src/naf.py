@@ -13,7 +13,9 @@ logger = getLogger(__name__)
 
 class NAF(object):
   def __init__(self,
-               sess, model_dir, env_name, hidden_dims,
+               sess, model_dir, env_name,
+               use_batch_norm, l1_reg_scale, l2_reg_scale,
+               hidden_dims, hidden_activation_fn,
                noise, noise_scale,
                tau, decay, epsilon, discount,
                memory_size, batch_size,
@@ -45,7 +47,9 @@ class NAF(object):
       'session': sess,
       'input_shape': self.env.observation_space.shape,
       'action_size': self.env.action_space.shape[0],
-      'hidden_dims': hidden_dims,
+      'use_batch_norm': use_batch_norm,
+      'l1_reg_scale': l1_reg_scale, 'l2_reg_scale': l2_reg_scale,
+      'hidden_dims': hidden_dims, 'hidden_activation_fn': hidden_activation_fn,
       'decay': decay, 'epsilon': epsilon,
     }
 

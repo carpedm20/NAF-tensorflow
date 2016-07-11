@@ -138,10 +138,8 @@ class Network(object):
     self.assign_op = {}
     for from_, to_ in zip(network.variables, self.variables):
       if 'BatchNorm' in to_.name:
-        print "assign", to_.name
         self.assign_op[to_.name] = to_.assign(from_)
       else:
-        print "soft", to_.name
         self.assign_op[to_.name] = to_.assign(tau * from_ + (1-tau) * to_)
 
   def hard_copy_from(self, network):
