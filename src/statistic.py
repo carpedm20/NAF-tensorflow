@@ -6,8 +6,9 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 class Statistic(object):
-  def __init__(self, sess, t_test, t_learn_start, model_dir, variables, max_to_keep=20):
+  def __init__(self, sess, env_name, t_test, t_learn_start, model_dir, variables, max_to_keep=20):
     self.sess = sess
+    self.env_name = env_name
     self.t_test = t_test
     self.t_learn_start = t_learn_start
 
@@ -24,8 +25,8 @@ class Statistic(object):
 
     with tf.variable_scope('summary'):
       scalar_summary_tags = [
-        'average/reward', 'average/loss', 'average/q', 'average/v', 'average/a',
-        'episode/max reward', 'episode/min reward', 'episode/avg reward',
+        'average.reward', 'average.loss', 'average.q', 'average.v', 'average.a',
+        'episode.max reward', 'episode.min reward', 'episode.avg reward',
       ]
 
       self.summary_placeholders = {}
@@ -33,13 +34,13 @@ class Statistic(object):
 
       for tag in scalar_summary_tags:
         self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
-        self.summary_ops[tag]  = tf.scalar_summary(tag, self.summary_placeholders[tag])
+        self.summary_ops[tag]  = tf.scalar_summary('%s/%s' % (self.env_name, tag), self.summary_placeholders[tag])
 
-      histogram_summary_tags = ['episode/rewards']
+      histogram_summary_tags = ['episode.rewards']
 
       for tag in histogram_summary_tags:
         self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
-        self.summary_ops[tag]  = tf.histogram_summary(tag, self.summary_placeholders[tag])
+        self.summary_ops[tag]  = tf.histogram_summary('%s/%s' % (self.env_name, tag), self.summary_placeholders[tag])
 
   def reset(self):
     self.num_game = 0
@@ -98,16 +99,16 @@ class Statistic(object):
 
         self.inject_summary({
             # scalar
-            'average/q': avg_q,
-            'average/v': avg_v,
-            'average/a': avg_a,
-            'average/loss': avg_loss,
-            'average/reward': avg_reward,
-            'episode/max reward': max_ep_reward,
-            'episode/min reward': min_ep_reward,
-            'episode/avg reward': avg_ep_reward,
+            'average.q': avg_q,
+            'average.v': avg_v,
+            'average.a': avg_a,
+            'average.loss': avg_loss,
+            'average.reward': avg_reward,
+            'episode.max reward': max_ep_reward,
+            'episode.min reward': min_ep_reward,
+            'episode.avg reward': avg_ep_reward,
             # histogram
-            'episode/rewards': self.ep_rewards,
+            'episode.rewards': self.ep_rewards,
           }, self.t)
 
         self.reset()

@@ -64,7 +64,7 @@ class NAF(object):
     )
     self.target_network.make_soft_update_from(self.pred_network, tau)
 
-    self.stat = Statistic(sess, test_step, 0, model_dir, self.pred_network.variables)
+    self.stat = Statistic(sess, env_name, test_step, 0, model_dir, self.pred_network.variables)
 
   def train(self, monitor=False, display=False):
     self.optim = tf.train.AdamOptimizer(self.learning_rate) \
