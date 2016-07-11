@@ -27,8 +27,8 @@ flags.DEFINE_float('tau', 0.001, 'tau of soft target update')
 flags.DEFINE_integer('max_update', 10, 'maximum # of q-learning update for each step')
 flags.DEFINE_integer('batch_size', 100, 'batch size')
 flags.DEFINE_integer('test_step', 100, '# of episode interval to run test')
-flags.DEFINE_integer('max_step', 100000, 'maximum step for each episode')
-flags.DEFINE_integer('max_episode', 200, 'maximum # of episode to train')
+flags.DEFINE_integer('max_step', 200, 'maximum step for each episode')
+flags.DEFINE_integer('max_episode', 100000, 'maximum # of episode to train')
 
 # misc.
 flags.DEFINE_boolean('is_train', True, 'Training or Test')
