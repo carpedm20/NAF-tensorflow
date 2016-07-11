@@ -100,7 +100,7 @@ class NAF(object):
 
       logger.info('Episode reward: %s' % episode_reward)
 
-    if mointor:
+    if monitor:
       self.env.monitor.close()
 
   def predict(self, state):
