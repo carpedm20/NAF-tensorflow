@@ -91,7 +91,7 @@ class Network(object):
 
       with tf.variable_scope('advantage'):
         l = make_output(hidden_layer, (action_size * (action_size + 1))/2, scope='l')
-        mu = tf.nn.tanh(make_output(hidden_layer, action_size, scope='mu'))
+        mu = make_output(hidden_layer, action_size, scope='mu')
 
         pivot = 0
         rows = []

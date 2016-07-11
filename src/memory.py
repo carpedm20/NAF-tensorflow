@@ -10,7 +10,7 @@ class Memory:
     self.action_shape = env.action_space.shape
     self.observation_shape = env.observation_space.shape
 
-    self.rewards = np.empty(self.memory_size, dtype = np.int8)
+    self.rewards = np.empty(self.memory_size, dtype = np.float16)
     self.terminals = np.empty(self.memory_size, dtype = np.bool)
     self.actions = np.empty((self.memory_size,) + self.action_shape, dtype = np.float16)
     self.screens = np.empty((self.memory_size,) + self.observation_shape, dtype = np.float16)

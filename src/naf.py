@@ -4,7 +4,6 @@ from tqdm import tqdm
 import tensorflow as tf
 from logging import getLogger
 
-from .agent import Agent
 from .memory import Memory
 from .network import Network
 from .utils import get_timestamp
@@ -12,16 +11,7 @@ from .statistic import Statistic
 
 logger = getLogger(__name__)
 
-def step(env, action):
-  if isinstance(env.action_space, gym.spaces.box.Box):
-    lb, ub = env.action_space.low, env.action_space.high
-    scaled_action = lb + (action + 1.) * 0.5 * (ub - lb)
-    scaled_action = np.clip(scaled_action, lb, ub)
-  else:
-    scaled_action = action
-  return env.step(scaled_action)
-
-class NAF(Agent):
+class NAF(object):
   def __init__(self,
                sess, model_dir, env_name, hidden_dims,
                noise, noise_scale,
@@ -91,7 +81,7 @@ class NAF(Agent):
         # 1. predict
         action = self.predict(state)
         # 2. step
-        state, reward, terminal, _ = step(self.env, action)
+        state, reward, terminal, _ = self.env.step(action)
         # 3. perceive
         q, v, a, loss, is_update = self.perceive(state, reward, action, terminal)
 
@@ -126,6 +116,32 @@ class NAF(Agent):
     else:
       assert False
 
+    q_t, v_t, a_t, mu = self.sess.run([
+        self.pred_network.Q,
+        self.pred_network.V,
+        self.pred_network.A,
+        self.pred_network.mu,
+      ], {
+        self.pred_network.x: [state],
+        self.pred_network.u: [action],
+        self.pred_network.is_training: False,
+      })
+
+    _q_t, _v_t, _a_t, _mu = self.sess.run([
+        self.target_network.Q,
+        self.target_network.V,
+        self.target_network.A,
+        self.target_network.mu,
+      ], {
+        self.target_network.x: [state],
+        self.target_network.u: [action],
+        self.target_network.is_training: False,
+      })
+    print
+    print "action: %s, Q: %s, V: %s, _V: %s" % (a_t, q_t, v_t, _v_t)
+    print "action: %s, Adv: %s" % (action, a_t)
+    print "mu: %s, action: %s", (mu, action)
+
     return action
 
   def perceive(self, state, reward, action, terminal):
@@ -148,7 +164,7 @@ class NAF(Agent):
       x_t, u_t, r_t, x_t_plus_1, terminal = self.memory.sample()
 
       v = self.target_network.V.eval({
-        self.target_network.x: x_t,
+        self.target_network.x: x_t_plus_1,
         self.target_network.u: u_t,
         self.target_network.is_training: False,
       })
@@ -171,6 +187,7 @@ class NAF(Agent):
       self.target_network.soft_update_from(self.pred_network)
 
       logger.info("target_v: %s, q_t: %s, v_t: %s, a_t: %s, loss: %s" % (target_v[0], q_t[0], v_t[0], a_t[0], loss))
+    #import ipdb; ipdb.set_trace() 
 
     return q_t, v_t, a_t, np.mean(losses)
 
@@ -218,6 +235,6 @@ class NAF(Agent):
       logger.info("target_v: %s, q_t: %s, v_t: %s, a_t: %s, loss: %s" % (target_v, q_t, v_t, a_t, loss))
 
     minimize()
-    import ipdb; ipdb.set_trace() 
+    #import ipdb; ipdb.set_trace() 
 
     return q_t, v_t, a_t, np.mean(losses)
