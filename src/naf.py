@@ -107,40 +107,12 @@ class NAF(object):
     elif self.noise == 'covariance':
       if self.action_size == 1:
         std = np.minimum(self.noise_scale / P(x)[0], 1)
-        #print "std:", std
         action = np.random.normal(u, std, size=(1,))
       else:
         cov = np.minimum(np.linalg.inv(P(x)[0]) * self.noise_scale, 1)
-        #print "covariance:", cov
         action = np.random.multivariate_normal(u, cov)
     else:
       assert False
-
-    q_t, v_t, a_t, mu = self.sess.run([
-        self.pred_network.Q,
-        self.pred_network.V,
-        self.pred_network.A,
-        self.pred_network.mu,
-      ], {
-        self.pred_network.x: [state],
-        self.pred_network.u: [action],
-        self.pred_network.is_training: False,
-      })
-
-    _q_t, _v_t, _a_t, _mu = self.sess.run([
-        self.target_network.Q,
-        self.target_network.V,
-        self.target_network.A,
-        self.target_network.mu,
-      ], {
-        self.target_network.x: [state],
-        self.target_network.u: [action],
-        self.target_network.is_training: False,
-      })
-    print
-    print "action: %s, Q: %s, V: %s, _V: %s" % (a_t, q_t, v_t, _v_t)
-    print "action: %s, Adv: %s" % (action, a_t)
-    print "mu: %s, action: %s", (mu, action)
 
     return action
 
@@ -157,8 +129,6 @@ class NAF(object):
 
   def q_learning_minibatch(self):
     losses = []
-
-    #self.test_q_learning_minibatch()
 
     for iteration in xrange(self.max_update):
       x_t, u_t, r_t, x_t_plus_1, terminal = self.memory.sample()
@@ -186,55 +156,6 @@ class NAF(object):
 
       self.target_network.soft_update_from(self.pred_network)
 
-      logger.info("target_v: %s, q_t: %s, v_t: %s, a_t: %s, loss: %s" % (target_v[0], q_t[0], v_t[0], a_t[0], loss))
-    #import ipdb; ipdb.set_trace() 
-
-    return q_t, v_t, a_t, np.mean(losses)
-
-  def test_q_learning_minibatch(self):
-    losses = []
-
-    x_t, u_t, r_t, x_t_plus_1, terminal = self.memory.sample(1)
-    x_t, u_t, r_t, x_t_plus_1, terminal = [x_t[0]], [u_t[0]], [r_t[0]], [x_t_plus_1[0]], [terminal[0]]
-
-    q_t, v_t, a_t = self.sess.run([
-        self.pred_network.Q,
-        self.pred_network.V,
-        self.pred_network.A,
-      ], {
-        self.pred_network.x: x_t,
-        self.pred_network.u: u_t,
-        self.pred_network.is_training: False,
-      })
-    print
-    logger.info("r_t: %s, q_t: %s, v_t: %s, a_t: %s" % (r_t, q_t, v_t, a_t))
-
-    v = self.target_network.V.eval({
-      self.target_network.x: x_t,
-      self.target_network.u: u_t,
-      self.target_network.is_training: False,
-    })
-
-    def minimize():
-      target_v = self.discount * np.squeeze(v, 1) + r_t
-      _, q_t, v_t, a_t, loss = self.sess.run([
-          self.optim,
-          self.pred_network.Q,
-          self.pred_network.V,
-          self.pred_network.A,
-          self.pred_network.loss
-        ], {
-          self.pred_network.target_y: target_v,
-          self.pred_network.x: x_t,
-          self.pred_network.u: u_t,
-          self.pred_network.is_training: True,
-        })
-      losses.append(loss)
-      self.target_network.soft_update_from(self.pred_network)
-
-      logger.info("target_v: %s, q_t: %s, v_t: %s, a_t: %s, loss: %s" % (target_v, q_t, v_t, a_t, loss))
-
-    minimize()
-    #import ipdb; ipdb.set_trace() 
+      logger.debug("target_v: %s, q_t: %s, v_t: %s, a_t: %s, loss: %s" % (target_v[0], q_t[0], v_t[0], a_t[0], loss))
 
     return q_t, v_t, a_t, np.mean(losses)
