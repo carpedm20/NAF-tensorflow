@@ -124,7 +124,9 @@ class Network(object):
       self.target_y = target_y
       self.is_training = is_training
 
-      self.V, self.l, self.L, self.P, self.mu, self.A, self.Q = V, l, L, P, mu, A, Q
+      self.V, self.Q = V, Q
+      self.l, self.L, self.P, self.mu, self.A = l, L, P, mu, A
+
       self.variables = get_variables(name)
 
   def predict(self, state):

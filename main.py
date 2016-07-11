@@ -13,7 +13,7 @@ flags.DEFINE_integer('memory_size', 10**6, 'size of memory')
 flags.DEFINE_boolean('use_batch_norm', False, 'use batch normalization or not')
 flags.DEFINE_float('l1_reg_scale', None, 'scale of l1 regularization')
 flags.DEFINE_float('l2_reg_scale', 0.01, 'scale of l2 regularization')
-flags.DEFINE_string('hidden_dims', '[200, 200]', 'dimension of hidden layers')
+flags.DEFINE_string('hidden_dims', '[100, 100]', 'dimension of hidden layers')
 flags.DEFINE_string('hidden_activation_fn', 'tanh', 'type of activation function of hidden layer [tanh, relu]')
 
 # training
