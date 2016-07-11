@@ -66,7 +66,7 @@ class NAF(object):
 
     self.stat = Statistic(sess, env_name, test_step, 0, model_dir, self.pred_network.variables)
 
-  def train(self, monitor=False, display=False):
+  def run(self, monitor=False, display=False, is_train=True):
     self.optim = tf.train.AdamOptimizer(self.learning_rate) \
       .minimize(self.pred_network.loss, var_list=self.pred_network.variables)
 
@@ -77,6 +77,7 @@ class NAF(object):
 
     self.target_network.hard_copy_from(self.pred_network)
     for self.idx_episode in tqdm(range(0, self.max_episode), ncols=70):
+      episode_reward = 0
       state = self.env.reset()
 
       for t in xrange(0, self.max_step):
@@ -87,12 +88,17 @@ class NAF(object):
         # 2. step
         state, reward, terminal, _ = self.env.step(action)
         # 3. perceive
-        q, v, a, loss, is_update = self.perceive(state, reward, action, terminal)
+        if is_train:
+          q, v, a, loss, is_update = self.perceive(state, reward, action, terminal)
 
-        if self.stat and is_update:
-          self.stat.on_step(action, reward, terminal, q, v, a, loss, is_update)
+          if self.stat and is_update:
+            self.stat.on_step(action, reward, terminal, q, v, a, loss, is_update)
 
-        if terminal: break
+        episode_reward += reward
+        if terminal:
+          break
+
+      logger.info('Episode reward: %s' % episode_reward)
 
     if mointor:
       self.env.monitor.close()

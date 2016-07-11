@@ -74,10 +74,7 @@ def main(_):
                 conf.learning_rate,
                 conf.max_step, conf.max_update, conf.max_episode, conf.test_step)
 
-    if conf.is_train:
-      agent.train(conf.monitor, conf.display)
-    else:
-      agent.play()
+    agent.run(conf.monitor, conf.display, conf.is_train)
 
 if __name__ == '__main__':
   tf.app.run()

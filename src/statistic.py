@@ -13,7 +13,7 @@ class Statistic(object):
     self.t_learn_start = t_learn_start
 
     self.reset()
-    self.max_avg_ep_reward = 0
+    self.max_avg_reward = None
 
     with tf.variable_scope('t'):
       self.t_op = tf.Variable(0, trainable=False, name='t')
@@ -93,9 +93,12 @@ class Statistic(object):
         logger.info('\navg_r: %.4f, avg_l: %.6f, avg_q: %3.6f, avg_ep_r: %.4f, max_ep_r: %.4f, min_ep_r: %.4f, # game: %d' \
             % (avg_reward, avg_loss, avg_q, avg_ep_reward, max_ep_reward, min_ep_reward, self.num_game))
 
-        if self.max_avg_ep_reward * 0.9 <= avg_ep_reward:
+        if self.max_avg_reward == None:
+          self.max_avg_reward = avg_reward
+
+        if self.max_avg_reward * 0.9 <= avg_reward:
           self.save_model(self.t)
-          self.max_avg_ep_reward = max(self.max_avg_ep_reward, avg_ep_reward)
+          self.max_avg_reward = max(self.max_avg_reward, avg_reward)
 
         self.inject_summary({
             # scalar
