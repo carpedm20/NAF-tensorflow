@@ -43,6 +43,7 @@ class NAF(object):
     for self.idx_episode in tqdm(range(0, self.max_episode), ncols=70):
       episode_reward = 0
       state = self.env.reset()
+      self.states.append(state)
 
       for t in xrange(0, self.max_step):
         if display: self.env.render()
@@ -88,10 +89,10 @@ class NAF(object):
     l_list = []
 
     for iteration in xrange(self.max_update):
-      if len(self.states) - 1 > self.batch_size:
-        indexes = np.random.choice(len(self.states) - 1, size=self.batch_size)
+      if len(self.rewards) >= self.batch_size:
+        indexes = np.random.choice(len(self.rewards), size=self.batch_size)
       else:
-        indexes = np.arange(len(self.states) - 1)
+        indexes = np.arange(len(self.rewards))
 
       x_t = np.array(self.states)[indexes]
       x_t_plus_1 = np.array(self.states)[indexes + 1]
