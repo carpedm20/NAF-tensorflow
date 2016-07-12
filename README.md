@@ -10,7 +10,7 @@ TensorFlow implementation of [Continuous Deep q-Learning with Model-based Accele
 - Python 2.7
 - [gym](https://github.com/openai/gym)
 - [tqdm](https://github.com/tqdm/tqdm)
-- [TensorFlow](https://www.tensorflow.org/)
+- [TensorFlow](https://www.tensorflow.org/) 0.9+
 
 
 ## Usage
@@ -32,7 +32,7 @@ To test and record the screens with gym:
 
 ## Results
 
-Training details of Pendulum-v0 for different parameters.
+Training details of Pendulum-v0 for different parameters. (in progress)
 
     $ python main.py --env=Pendulum-v0 --learning_rate=0.001 --hidden_dims='[100,100]' # light green
     $ python main.py --env=Pendulum-v0 --learning_rate=0.001 --hidden_dims='[100,100]' --use_batch_norm=True # purple

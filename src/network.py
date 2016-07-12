@@ -15,6 +15,7 @@ class Network(object):
                decay=0.9,
                epsilon=1e-4,
                use_batch_norm=False,
+               use_seperate_networks=False,
                l1_reg_scale=0.001,
                l2_reg_scale=None,
                action_merge_layer=-2,
@@ -50,23 +51,22 @@ class Network(object):
       logger.debug("hidden_dims: %s" % hidden_dims)
       logger.debug("action_merge_layer: %d" % action_merge_layer)
 
-      if use_batch_norm:
-        hidden_layer = batch_norm(x, decay=decay, epsilon=epsilon, is_training=is_training)
-      else:
-        hidden_layer = x
-
-      for idx, hidden_dim in enumerate(hidden_dims):
+      def make_hidden(input_layer, output_dim, idx, use_batch_norm):
         if use_batch_norm:
           batch_norm_args = {
             'normalizer_fn': batch_norm,
-            'normalizer_params': {'decay': decay, 'epsilon': epsilon, 'is_training': is_training}
+            'normalizer_params': {
+              'decay': decay,
+              'epsilon': epsilon,
+              'is_training': is_training,
+            }
           }
         else:
           batch_norm_args = {}
-                
-        hidden_layer = fully_connected(
-          hidden_layer,
-          num_outputs=hidden_dim,
+
+        return fully_connected(
+          input_layer,
+          num_outputs=output_dim,
           activation_fn=hidden_activation_fn,
           weights_initializer=hidden_weights_initializer,
           weights_regularizer=regularizer,
@@ -74,6 +74,31 @@ class Network(object):
           scope='hid%d' % idx,
           **batch_norm_args
         )
+
+      hid = {}
+      if use_seperate_networks:
+        logger.info("Create seperate networks for V, l, and mu")
+
+        for scope in ['V_hid', 'l_hid', 'mu_hid']:
+          with tf.variable_scope(scope):
+            if use_batch_norm:
+              hidden_layer = batch_norm(x, decay=decay, epsilon=epsilon, is_training=is_training)
+            else:
+              hidden_layer = x
+            for idx, hidden_dim in enumerate(hidden_dims):
+              hidden_layer = make_hidden(hidden_layer, hidden_dim, idx, use_batch_norm)
+            hid[scope] = hidden_layer
+      else:
+        logger.info("Create shared networks for V, l, and mu")
+
+        if use_batch_norm:
+          hidden_layer = batch_norm(x, decay=decay, epsilon=epsilon, is_training=is_training)
+        else:
+          hidden_layer = x
+        for idx, hidden_dim in enumerate(hidden_dims):
+          hidden_layer = make_hidden(hidden_layer, hidden_dim, idx, use_batch_norm)
+
+        hid['V_hid'], hid['l_hid'], hid['mu_hid'] = hidden_layer, hidden_layer, hidden_layer
 
       def make_output(layer, num_outputs, scope='out'):
         return fully_connected(
@@ -87,11 +112,11 @@ class Network(object):
         )
 
       with tf.variable_scope('value'):
-        V = make_output(hidden_layer, 1, scope='V')
+        V = make_output(hid['V_hid'], 1, scope='V')
 
       with tf.variable_scope('advantage'):
-        l = make_output(hidden_layer, (action_size * (action_size + 1))/2, scope='l')
-        mu = make_output(hidden_layer, action_size, scope='mu')
+        l = make_output(hid['l_hid'], (action_size * (action_size + 1))/2, scope='l')
+        mu = make_output(hid['mu_hid'], action_size, scope='mu')
 
         pivot = 0
         rows = []
@@ -131,6 +156,17 @@ class Network(object):
 
   def predict(self, state):
     return self.sess.run(self.mu, {self.x: state, self.is_training: False})
+
+  def update(self, optim, target_v, x_t, u_t):
+    _, q, v, a, l = self.sess.run([
+        optim, self.Q, self.V, self.A, self.loss
+      ], {
+        self.target_y: target_v,
+        self.x: x_t,
+        self.u: u_t,
+        self.is_training: True,
+      })
+    return q, v, a, l
 
   def make_soft_update_from(self, network, tau):
     logger.info("Creating ops for soft target update...")
