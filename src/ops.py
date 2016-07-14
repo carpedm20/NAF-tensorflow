@@ -1,13 +1,44 @@
 import tensorflow as tf
-from tensorflow.contrib.framework import get_variables
-from tensorflow.contrib.layers import fully_connected, initializers, l1_regularizer, l2_regularizer, batch_norm
 
+from tensorflow.contrib.layers import fully_connected
+from tensorflow.contrib.layers import initializers
+from tensorflow.contrib.layers import l1_regularizer
+from tensorflow.contrib.layers import l2_regularizer
+from tensorflow.contrib.layers import batch_norm
+
+random_uniform_big = tf.random_uniform_initializer(-0.05, 0.05)
+random_uniform_small = tf.random_uniform_initializer(-3e-4, 3e-4)
+he_uniform = initializers.variance_scaling_initializer(factor=2.0, mode='FAN_IN', uniform=False)
+
+def fc(layer, output_size, is_training, 
+       weight_init, weight_reg=None, activation_fn=None, 
+       use_batch_norm=False, scope='fc'):
+  if use_batch_norm:
+    batch_norm_args = {
+      'normalizer_fn': batch_norm,
+      'normalizer_params': {
+        'is_training': is_training,
+      }
+    }
+  else:
+    batch_norm_args = {}
+
+  with tf.variable_scope(scope):
+    return fully_connected(
+      layer,
+      num_outputs=output_size,
+      activation_fn=activation_fn,
+      weights_initializer=weight_init,
+      weights_regularizer=weight_reg,
+      biases_initializer=tf.constant_initializer(0.0),
+      scope=scope,
+      **batch_norm_args
+    )
 
 from tensorflow.contrib.framework.python.ops import add_arg_scope
 from tensorflow.contrib.framework.python.ops import variables
 from tensorflow.contrib.layers.python.layers import initializers
 from tensorflow.contrib.layers.python.layers import utils
-
 
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -115,42 +146,3 @@ def batch_norm(inputs,
     outputs.set_shape(inputs_shape)
 
     return utils.collect_named_outputs(outputs_collections, sc.name, outputs)
-
-"""
-def batch_norm(layer,
-               is_train, 
-               decay=0.9, epsilon=1e-4,
-               data_format='NCHW', scope='bn'):
-  input_shape = layer.get_shape().as_list()
-
-  if data_format == 'NCHW':
-    axes = (0,) + tuple(range(2, len(input_shape)))
-  elif data_format == 'NHWC':
-    axes = (0,) + tuple(range(1, len(input_shape) - 1))
-  else:
-    raise ValueError('Unknown data_format: %s' % data_format)
-
-  shape = [size for axis, size in enumerate(input_shape) if axis not in axes]
-
-  with tf.variable_scope(scope):
-    ema = tf.train.ExponentialMovingAverage(decay=decay)
-
-    beta = tf.Variable(tf.constant(0.0, shape=shape), name='beta')
-    gamma = tf.Variable(tf.constant(1.0, shape=shape), name='gamma')
-
-    mean, variance = tf.nn.moments(layer, axes)
-    maintain_averages_op = ema.apply([mean, variance])
-
-    with tf.control_dependencies([maintain_averages_op]):
-      mean_with_dep, variance_with_dep = tf.identity(mean), tf.identity(variance)
-
-    shadow_mean = ema.average(mean)
-    shadow_variance = ema.average(variance)
-
-    m, v = tf.cond(is_train,
-                   lambda: (mean_with_dep, variance_with_dep),
-                   lambda: (shadow_mean, shadow_variance))
-
-    return tf.nn.batch_normalization(
-      layer, m, v, beta, gamma, epsilon)
-"""

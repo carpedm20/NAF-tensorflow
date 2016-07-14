@@ -6,7 +6,7 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 class Statistic(object):
-  def __init__(self, sess, env_name, max_update_per_step, model_dir, variables, max_to_keep=20):
+  def __init__(self, sess, env_name, model_dir, variables, max_update_per_step, max_to_keep=20):
     self.sess = sess
     self.env_name = env_name
     self.max_update_per_step = max_update_per_step
@@ -56,7 +56,7 @@ class Statistic(object):
       avg_q = self.total_q / self.ep_step / self.max_update_per_step
       avg_v = self.total_v / self.ep_step / self.max_update_per_step
       avg_a = self.total_a / self.ep_step / self.max_update_per_step
-      avg_l = self.total_l / self.ep_step
+      avg_l = self.total_l / self.ep_step / self.max_update_per_step
 
       avg_r = np.mean(self.ep_rewards)
       total_r = np.sum(self.ep_rewards)

@@ -1,122 +1,60 @@
-import tensorflow as tf
 from logging import getLogger
-
-from .ops import fully_connected, initializers, get_variables, batch_norm, l1_regularizer, l2_regularizer
-
 logger = getLogger(__name__)
-He_uniform = initializers.variance_scaling_initializer(factor=2.0, mode='FAN_IN', uniform=False)
 
-class Network(object):
-  def __init__(self,
-               session,
-               input_shape,
-               action_size,
-               hidden_dims,
-               decay=0.9,
-               epsilon=1e-4,
-               use_batch_norm=False,
-               use_seperate_networks=False,
-               l1_reg_scale=0.001,
-               l2_reg_scale=None,
-               action_merge_layer=-2,
-               hidden_activation_fn=tf.nn.tanh,
-               hidden_weights_initializer=He_uniform,
-               hidden_biases_initializer=tf.constant_initializer(0.0),
-               output_activation_fn=None,
-               output_weights_initializer=tf.random_uniform_initializer(-3e-4,3e-4),
-               output_biases_initializer=tf.constant_initializer(0.0),
-               name='NAF'):
-    self.sess = session
+import tensorflow as tf
+from tensorflow.contrib.framework import get_variables
 
-    if l1_reg_scale != None:
-      regularizer = l1_regularizer(l1_reg_scale)
-    elif l2_reg_scale != None:
-      regularizer = l2_regularizer(l2_reg_scale)
-    else:
-      regularizer = None
+from .ops import *
 
-    with tf.variable_scope(name):
+class Network:
+  def __init__(self, sess, input_shape, action_size, hidden_dims,
+               use_batch_norm, use_seperate_networks,
+               hidden_w, action_w, hidden_fn, action_fn, w_reg,
+               scope='NAF'):
+    self.sess = sess
+    with tf.variable_scope(scope):
       x = tf.placeholder(tf.float32, (None,) + tuple(input_shape), name='observations')
       u = tf.placeholder(tf.float32, (None, action_size), name='actions')
+      is_train = tf.placeholder(tf.bool, name='is_train')
 
-      is_training = tf.placeholder(tf.bool, name='is_training')
+      hid_outs = {}
+      with tf.name_scope('hidden'):
+        if use_seperate_networks:
+          logger.info("Creating seperate networks for v, l, and mu")
 
-      n_layers = len(hidden_dims) + 1
-      if n_layers > 1:
-        action_merge_layer = \
-          (action_merge_layer % n_layers + n_layers) % n_layers
-      else:
-        action_merge_layer = 1
+          for scope in ['v', 'l', 'mu']:
+            with tf.variable_scope(scope):
+              if use_batch_norm:
+                h = batch_norm(x, is_training=is_train)
+              else:
+                h = x
 
-      logger.debug("hidden_dims: %s" % hidden_dims)
-      logger.debug("action_merge_layer: %d" % action_merge_layer)
-
-      def make_hidden(input_layer, output_dim, idx, use_batch_norm):
-        if use_batch_norm:
-          batch_norm_args = {
-            'normalizer_fn': batch_norm,
-            'normalizer_params': {
-              'decay': decay,
-              'epsilon': epsilon,
-              'is_training': is_training,
-            }
-          }
+              for idx, hidden_dim in enumerate(hidden_dims):
+                h = fc(h, hidden_dim, is_train, hidden_w, weight_reg=w_reg,
+                       activation_fn=hidden_fn, use_batch_norm=use_batch_norm, scope='hid%d' % idx)
+              hid_outs[scope] = h
         else:
-          batch_norm_args = {}
+          logger.info("Creating shared networks for v, l, and mu")
 
-        return fully_connected(
-          input_layer,
-          num_outputs=output_dim,
-          activation_fn=hidden_activation_fn,
-          weights_initializer=hidden_weights_initializer,
-          weights_regularizer=regularizer,
-          biases_initializer=hidden_biases_initializer,
-          scope='hid%d' % idx,
-          **batch_norm_args
-        )
+          if use_batch_norm:
+            h = batch_norm(x, is_training=is_train)
+          else:
+            h = x
 
-      hid = {}
-      if use_seperate_networks:
-        logger.info("Create seperate networks for V, l, and mu")
+          for idx, hidden_dim in enumerate(hidden_dims):
+            h = fc(h, hidden_dim, is_train, hidden_w, weight_reg=w_reg,
+                   activation_fn=hidden_fn, use_batch_norm=use_batch_norm, scope='hid%d' % idx)
+          hid_outs['v'], hid_outs['l'], hid_outs['mu'] = h, h, h
 
-        for scope in ['V_hid', 'l_hid', 'mu_hid']:
-          with tf.variable_scope(scope):
-            if use_batch_norm:
-              hidden_layer = batch_norm(x, decay=decay, epsilon=epsilon, is_training=is_training)
-            else:
-              hidden_layer = x
-            for idx, hidden_dim in enumerate(hidden_dims):
-              hidden_layer = make_hidden(hidden_layer, hidden_dim, idx, use_batch_norm)
-            hid[scope] = hidden_layer
-      else:
-        logger.info("Create shared networks for V, l, and mu")
+      with tf.name_scope('value'):
+        V = fc(hid_outs['v'], 1, is_train,
+               hidden_w, use_batch_norm=use_batch_norm, scope='V')
 
-        if use_batch_norm:
-          hidden_layer = batch_norm(x, decay=decay, epsilon=epsilon, is_training=is_training)
-        else:
-          hidden_layer = x
-        for idx, hidden_dim in enumerate(hidden_dims):
-          hidden_layer = make_hidden(hidden_layer, hidden_dim, idx, use_batch_norm)
-
-        hid['V_hid'], hid['l_hid'], hid['mu_hid'] = hidden_layer, hidden_layer, hidden_layer
-
-      def make_output(layer, num_outputs, scope='out'):
-        return fully_connected(
-          layer,
-          num_outputs=num_outputs,
-          activation_fn=output_activation_fn,
-          weights_initializer=output_weights_initializer,
-          weights_regularizer=regularizer,
-          biases_initializer=output_biases_initializer,
-          scope=scope,
-        )
-
-      with tf.variable_scope('value'):
-        V = make_output(hid['V_hid'], 1, scope='V')
-
-      with tf.variable_scope('advantage'):
-        l = make_output(hid['l_hid'], (action_size * (action_size + 1))/2, scope='l')
-        mu = make_output(hid['mu_hid'], action_size, scope='mu')
+      with tf.name_scope('advantage'):
+        l = fc(hid_outs['l'], (action_size * (action_size + 1))/2, is_train, hidden_w,
+               use_batch_norm=use_batch_norm, scope='l')
+        mu = fc(hid_outs['mu'], action_size, is_train, action_w,
+                activation_fn=action_fn, use_batch_norm=use_batch_norm, scope='mu')
 
         pivot = 0
         rows = []
@@ -137,25 +75,27 @@ class Network(object):
         A = -tf.batch_matmul(tf.transpose(tmp, [0, 2, 1]), tf.batch_matmul(P, tmp))/2
         A = tf.reshape(A, [-1, 1])
 
-      Q = A + V
+      with tf.name_scope('Q'):
+        Q = A + V
 
-      with tf.variable_scope('optimizer'):
-        target_y = tf.placeholder(tf.float32, [None], name='target_y')
-        loss = tf.reduce_mean(tf.square(target_y - Q), name='loss')
+      with tf.name_scope('optimization'):
+        self.target_y = tf.placeholder(tf.float32, [None], name='target_y')
+        self.loss = tf.reduce_mean(tf.squared_difference(self.target_y, tf.squeeze(Q)), name='loss')
 
-      self.x = x
-      self.u = u
-      self.loss = loss
-      self.target_y = target_y
-      self.is_training = is_training
+    self.is_train = is_train
+    self.variables = get_variables(scope)
 
-      self.V, self.Q = V, Q
-      self.l, self.L, self.P, self.mu, self.A = l, L, P, mu, A
+    self.x, self.u, self.mu, self.V, self.Q, self.P, self.A = x, u, mu, V, Q, P, A
 
-      self.variables = get_variables(name)
+  def predict_v(self, x, u):
+    return self.sess.run(self.V, {
+      self.x: x, self.u: u, self.is_train: False,
+    })
 
   def predict(self, state):
-    return self.sess.run(self.mu, {self.x: state, self.is_training: False})
+    return self.sess.run(self.mu, {
+      self.x: state, self.is_train: False
+    })
 
   def update(self, optim, target_v, x_t, u_t):
     _, q, v, a, l = self.sess.run([
@@ -164,7 +104,7 @@ class Network(object):
         self.target_y: target_v,
         self.x: x_t,
         self.u: u_t,
-        self.is_training: True,
+        self.is_train: True,
       })
     return q, v, a, l
 
