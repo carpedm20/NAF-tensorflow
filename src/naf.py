@@ -49,7 +49,7 @@ class NAF(object):
       state = self.env.reset()
 
       for t in xrange(0, self.max_steps):
-        if display: env.render()
+        if display: self.env.render()
 
         # 1. predict
         action = self.predict(state)
