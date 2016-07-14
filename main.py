@@ -22,21 +22,21 @@ flags.DEFINE_boolean('use_seperate_networks', False, 'use seperate networks for 
 flags.DEFINE_string('hidden_w', 'uniform_big', 'weight initialization of hidden layers [uniform_small, uniform_big, he]')
 flags.DEFINE_string('hidden_fn', 'tanh', 'activation function of hidden layer [none, tanh, relu]')
 flags.DEFINE_string('action_w', 'uniform_big', 'weight initilization of action layer [uniform_small, uniform_big, he]')
-flags.DEFINE_string('action_fn', 'none', 'activation function of action layer [none, tanh, relu]')
+flags.DEFINE_string('action_fn', 'tanh', 'activation function of action layer [none, tanh, relu]')
 flags.DEFINE_string('w_reg', 'none', 'weight regularization [none, l1, l2]')
 flags.DEFINE_float('w_reg_scale', 0.001, 'scale of regularization')
 
 # exploration
 flags.DEFINE_float('noise_scale', 0.3, 'scale of noise')
-flags.DEFINE_string('noise', 'linear_decay', 'type of noise exploration [ou, linear_decay, brownian]')
+flags.DEFINE_string('noise', 'ou', 'type of noise exploration [ou, linear_decay, brownian]')
 
 # training
 flags.DEFINE_float('tau', 0.001, 'tau of soft target update')
 flags.DEFINE_float('discount', 0.99, 'discount factor of Q-learning')
-flags.DEFINE_float('learning_rate', 1e-3, 'value of learning rate')
+flags.DEFINE_float('learning_rate', 1e-4, 'value of learning rate')
 flags.DEFINE_integer('batch_size', 100, 'The size of batch for minibatch training')
-flags.DEFINE_integer('max_steps', 200, 'maximum # of steps for each episode')
-flags.DEFINE_integer('update_repeat', 10, 'maximum # of q-learning updates for each step')
+flags.DEFINE_integer('max_steps', 150, 'maximum # of steps for each episode')
+flags.DEFINE_integer('update_repeat', 5, 'maximum # of q-learning updates for each step')
 flags.DEFINE_integer('max_episodes', 10000, 'maximum # of episodes to train')
 
 # Debug
