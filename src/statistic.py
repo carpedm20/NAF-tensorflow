@@ -61,8 +61,8 @@ class Statistic(object):
       avg_r = np.mean(self.ep_rewards)
       total_r = np.sum(self.ep_rewards)
 
-      logger.info('\ntotal_r: %.4f, avg_r: %.4f, avg_q: %.6f, avg_v: %3.6f, avg_a: %.4f, avg_l: %.4f' \
-          % (total_r, avg_r, avg_q, avg_q, avg_a, avg_l))
+      logger.info('t: %d, R: %.3f, r: %.3f, q: %.3f, v: %.3f, a: %.3f, l: %.3f' \
+          % (self.t, total_r, avg_r, avg_q, avg_q, avg_a, avg_l))
 
       if self.max_avg_r == None:
         self.max_avg_r = avg_r
