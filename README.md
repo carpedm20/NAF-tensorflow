@@ -31,7 +31,12 @@ To test and record the screens with gym:
 
 ## Results
 
-Training details of `Pendulum-v0`.
+Training details of `Pendulum-v0` with different hyperparameters.
+
+    $ python main.py --env=Pendulum-v0 # dark green
+    $ python main.py --env=Pendulum-v0 --action_fn=tanh # light green
+    $ python main.py --env=Pendulum-v0 --use_batch_norm=True # yellow
+    $ python main.py --env=Pendulum-v0 --use_seperate_networks=True # green
 
 ![Pendulum-v0_2016-07-15](https://github.com/carpedm20/naf-tensorflow/blob/master/assets/Pendulum-v0_2016-07-15.png)
 
