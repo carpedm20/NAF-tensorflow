@@ -9,7 +9,6 @@ TensorFlow implementation of [Continuous Deep q-Learning with Model-based Accele
 
 - Python 2.7
 - [gym](https://github.com/openai/gym)
-- [tqdm](https://github.com/tqdm/tqdm)
 - [TensorFlow](https://www.tensorflow.org/) 0.9+
 
 
