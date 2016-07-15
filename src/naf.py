@@ -5,6 +5,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.framework import get_variables
 
+from .utils import get_timestamp
+
 class NAF(object):
   def __init__(self, sess,
                env, strategy, pred_network, target_network, stat,
@@ -43,7 +45,7 @@ class NAF(object):
     self.target_network.hard_copy_from(self.pred_network)
 
     if monitor:
-      self.env.monitor.start('/tmp/%s-%s' % (self.env_name, get_timestamp()))
+      self.env.monitor.start('/tmp/%s-%s' % (self.stat.env_name, get_timestamp()))
 
     for self.idx_episode in xrange(self.max_episodes):
       state = self.env.reset()
