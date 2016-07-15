@@ -15,14 +15,14 @@ flags = tf.app.flags
 flags.DEFINE_string('env_name', 'Pendulum-v0', 'name of environment')
 
 # network
-flags.DEFINE_string('hidden_dims', '[200, 200]', 'dimension of hidden layers')
+flags.DEFINE_string('hidden_dims', '[100, 100]', 'dimension of hidden layers')
 flags.DEFINE_boolean('use_batch_norm', False, 'use batch normalization or not')
 flags.DEFINE_boolean('clip_action', False, 'whether to clip an action with given bound')
 flags.DEFINE_boolean('use_seperate_networks', False, 'use seperate networks for mu, V and A')
 flags.DEFINE_string('hidden_w', 'uniform_big', 'weight initialization of hidden layers [uniform_small, uniform_big, he]')
 flags.DEFINE_string('hidden_fn', 'tanh', 'activation function of hidden layer [none, tanh, relu]')
 flags.DEFINE_string('action_w', 'uniform_big', 'weight initilization of action layer [uniform_small, uniform_big, he]')
-flags.DEFINE_string('action_fn', 'none', 'activation function of action layer [none, tanh, relu]')
+flags.DEFINE_string('action_fn', 'tanh', 'activation function of action layer [none, tanh, relu]')
 flags.DEFINE_string('w_reg', 'none', 'weight regularization [none, l1, l2]')
 flags.DEFINE_float('w_reg_scale', 0.001, 'scale of regularization')
 
