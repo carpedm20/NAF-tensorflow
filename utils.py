@@ -30,7 +30,7 @@ def preprocess_conf(conf):
     option = option.lower()
 
     if option in ['hidden_dims', 'clip_by_value']:
-      conf.hidden_dims = eval(conf.hidden_dims)
+      setattr(conf, option, eval(conf.hidden_dims))
     elif option == 'w_reg':
       if value == 'l1':
         w_reg = l1_regularizer(conf.w_reg_scale)
