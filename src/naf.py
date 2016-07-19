@@ -10,7 +10,7 @@ from .utils import get_timestamp
 class NAF(object):
   def __init__(self, sess,
                env, strategy, pred_network, target_network, stat,
-               discount, batch_size, learning_rate,
+               discount, batch_size, learning_rate, clip_by_value,
                max_steps, update_repeat, max_episodes):
     self.sess = sess
     self.env = env
@@ -22,6 +22,7 @@ class NAF(object):
     self.discount = discount
     self.batch_size = batch_size
     self.learning_rate = learning_rate
+    self.clip_by_value = clip_by_value
     self.action_size = env.action_space.shape[0]
 
     self.max_steps = max_steps
@@ -37,6 +38,9 @@ class NAF(object):
     with tf.name_scope('optimizer'):
       self.target_y = tf.placeholder(tf.float32, [None], name='target_y')
       self.loss = tf.reduce_mean(tf.squared_difference(self.target_y, tf.squeeze(self.pred_network.Q)), name='loss')
+
+      if self.clip_by_value is not None:
+        self.loss = tf.clip_by_value(self.loss, self.clip_by_value[0], self.clip_by_value[1])
 
       self.optim = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
@@ -76,72 +80,6 @@ class NAF(object):
 
     if monitor:
       self.env.monitor.close()
-
-  def run2(self, monitor=False, display=False, is_train=True):
-    target_y = tf.placeholder(tf.float32, [None], name='target_y')
-    loss = tf.reduce_mean(tf.squared_difference(target_y, tf.squeeze(self.pred_network.Q)), name='loss')
-
-    optim = tf.train.AdamOptimizer(self.learning_rate).minimize(loss)
-
-    self.stat.load_model()
-    self.target_network.hard_copy_from(self.pred_network)
-
-    # replay memory
-    prestates = []
-    actions = []
-    rewards = []
-    poststates = []
-    terminals = []
-
-    # the main learning loop
-    total_reward = 0
-    for i_episode in xrange(self.max_episodes):
-      observation = self.env.reset()
-      episode_reward = 0
-
-      for t in xrange(self.max_steps):
-        if display:
-          self.env.render()
-
-        # predict the mean action from current observation
-        x_ = np.array([observation])
-        u_ = self.pred_network.mu.eval({self.pred_network.x: x_})[0]
-
-        action = u_ + np.random.randn(1) / (i_episode + 1)
-
-        prestates.append(observation)
-        actions.append(action)
-
-        observation, reward, done, info = self.env.step(action)
-        episode_reward += reward
-
-        rewards.append(reward); poststates.append(observation); terminals.append(done)
-
-        if len(prestates) > 10:
-          loss_ = 0
-          for k in xrange(self.update_repeat):
-            if len(prestates) > self.batch_size:
-              indexes = np.random.choice(len(prestates), size=self.batch_size)
-            else:
-              indexes = range(len(prestates))
-
-            # Q-update
-            v_ = self.target_network.V.eval({self.target_network.x: np.array(poststates)[indexes]})
-            y_ = np.array(rewards)[indexes] + self.discount * np.squeeze(v_)
-
-            tmp1, tmp2 = np.array(prestates)[indexes], np.array(actions)[indexes]
-            loss_ += l_
-
-            self.target_network.soft_update_from(self.pred_network)
-
-        if done:
-          break
-
-      print "average loss:", loss_/k
-      print "Episode {} finished after {} timesteps, reward {}".format(i_episode + 1, t + 1, episode_reward)
-      total_reward += episode_reward
-
-    print "Average reward per episode {}".format(total_reward / self.episodes)
 
   def predict(self, state):
     u = self.pred_network.predict([state])[0]

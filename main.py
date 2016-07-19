@@ -38,6 +38,7 @@ flags.DEFINE_integer('batch_size', 100, 'The size of batch for minibatch trainin
 flags.DEFINE_integer('max_steps', 0, 'maximum # of steps for each episode')
 flags.DEFINE_integer('update_repeat', 5, 'maximum # of q-learning updates for each step')
 flags.DEFINE_integer('max_episodes', 10000, 'maximum # of episodes to train')
+flags.DEFINE_string('clip_by_value', '[-1, 1]', 'clip the training loss')
 
 # Debug
 flags.DEFINE_boolean('is_train', True, 'training or testing')
@@ -112,7 +113,7 @@ def main(_):
     stat = Statistic(sess, conf.env_name, model_dir, pred_network.variables, conf.update_repeat)
 
     agent = NAF(sess, env, strategy, pred_network, target_network, stat,
-                conf.discount, conf.batch_size, conf.learning_rate,
+                conf.discount, conf.batch_size, conf.learning_rate, conf.clip_by_value,
                 conf.max_steps, conf.update_repeat, conf.max_episodes)
 
     agent.run(conf.monitor, conf.display, conf.is_train)

@@ -29,7 +29,7 @@ def preprocess_conf(conf):
   for option, value in options.items():
     option = option.lower()
 
-    if option == 'hidden_dims':
+    if option in ['hidden_dims', 'clip_by_value']:
       conf.hidden_dims = eval(conf.hidden_dims)
     elif option == 'w_reg':
       if value == 'l1':
