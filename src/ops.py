@@ -1,17 +1,18 @@
 import tensorflow as tf
 
 from tensorflow.contrib.layers import fully_connected
-from tensorflow.contrib.layers import initializers
+# from tensorflow.contrib.layers import initializers
 from tensorflow.contrib.layers import l1_regularizer
 from tensorflow.contrib.layers import l2_regularizer
 from tensorflow.contrib.layers import batch_norm
 
 random_uniform_big = tf.random_uniform_initializer(-0.05, 0.05)
 random_uniform_small = tf.random_uniform_initializer(-3e-4, 3e-4)
-he_uniform = initializers.variance_scaling_initializer(factor=2.0, mode='FAN_IN', uniform=False)
+# he_uniform = initializers.variance_scaling_initializer(factor=2.0, mode='FAN_IN', uniform=False)
+he_uniform = tf.contrib.layers.variance_scaling_initializer(factor=2.0, mode='FAN_IN', uniform=False)
 
-def fc(layer, output_size, is_training, 
-       weight_init, weight_reg=None, activation_fn=None, 
+def fc(layer, output_size, is_training,
+       weight_init, weight_reg=None, activation_fn=None,
        use_batch_norm=False, scope='fc'):
   if use_batch_norm:
     batch_norm_args = {
