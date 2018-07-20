@@ -7,7 +7,8 @@ from src.network import *
 pp = pprint.PrettyPrinter().pprint
 
 def get_model_dir(config, exceptions=None):
-  attrs = config.__dict__['__flags']
+
+  attrs = config.__flags
   pp(attrs)
 
   keys = attrs.keys()
@@ -28,6 +29,7 @@ def preprocess_conf(conf):
 
   for option, value in options.items():
     option = option.lower()
+    value = value.value
 
     if option == 'hidden_dims':
       conf.hidden_dims = eval(conf.hidden_dims)

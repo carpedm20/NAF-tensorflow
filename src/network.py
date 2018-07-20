@@ -63,16 +63,16 @@ class Network:
 
           diag_elem = tf.exp(tf.slice(l, (0, pivot), (-1, 1)))
           non_diag_elems = tf.slice(l, (0, pivot+1), (-1, count-1))
-          row = tf.pad(tf.concat(1, (diag_elem, non_diag_elems)), ((0, 0), (idx, 0)))
+          row = tf.pad(tf.concat((diag_elem, non_diag_elems), 1), ((0, 0), (idx, 0)))
           rows.append(row)
 
           pivot += count
 
-        L = tf.transpose(tf.pack(rows, axis=1), (0, 2, 1))
-        P = tf.batch_matmul(L, tf.transpose(L, (0, 2, 1)))
+        L = tf.transpose(tf.stack(rows, axis=1), (0, 2, 1))
+        P = tf.matmul(L, tf.transpose(L, (0, 2, 1)))
 
         tmp = tf.expand_dims(u - mu, -1)
-        A = -tf.batch_matmul(tf.transpose(tmp, [0, 2, 1]), tf.batch_matmul(P, tmp))/2
+        A = -tf.matmul(tf.transpose(tmp, [0, 2, 1]), tf.matmul(P, tmp))/2
         A = tf.reshape(A, [-1, 1])
 
       with tf.name_scope('Q'):

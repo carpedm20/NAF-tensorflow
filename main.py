@@ -57,14 +57,15 @@ tf.set_random_seed(conf.random_seed)
 np.random.seed(conf.random_seed)
 
 def main(_):
-  model_dir = get_model_dir(conf, 
+  model_dir = get_model_dir(conf,
       ['is_train', 'random_seed', 'monitor', 'display', 'log_level'])
+
   preprocess_conf(conf)
 
   with tf.Session() as sess:
     # environment
     env = gym.make(conf.env_name)
-    env._seed(conf.random_seed)
+    env.seed(conf.random_seed)
 
     assert isinstance(env.observation_space, gym.spaces.Box), \
       "observation space must be continuous"
@@ -86,7 +87,7 @@ def main(_):
       'sess': sess,
       'input_shape': env.observation_space.shape,
       'action_size': env.action_space.shape[0],
-      'hidden_dims': conf.hidden_dims, 
+      'hidden_dims': conf.hidden_dims,
       'use_batch_norm': conf.use_batch_norm,
       'use_seperate_networks': conf.use_seperate_networks,
       'hidden_w': conf.hidden_w, 'action_w': conf.action_w,
